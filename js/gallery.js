@@ -91,6 +91,20 @@ async function initMain() {
     }
   })();
 
+  // 모바일 액자 높이 JS로 강제 적용
+  function applyFrameHeight() {
+    const fi = document.getElementById('frame-inner');
+    if (!fi) return;
+    if (window.innerWidth > 768) { fi.style.height = ''; return; }
+    const portrait = window.innerHeight > window.innerWidth;
+    fi.style.height = portrait
+      ? Math.round(window.innerWidth * 4 / 3) + 'px'
+      : Math.round(window.innerWidth * 9 / 16) + 'px';
+  }
+  applyFrameHeight();
+  window.addEventListener('resize', applyFrameHeight);
+  window.addEventListener('orientationchange', () => setTimeout(applyFrameHeight, 300));
+
   // 액자 슬라이드쇼
   const frameInner = document.getElementById('frame-inner');
   const frameDots = document.getElementById('frame-dots');
