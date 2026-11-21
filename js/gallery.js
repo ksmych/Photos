@@ -256,19 +256,52 @@ async function initAlbum(dept, id, albumName, deptData) {
   photos.forEach(p => appendPhotoItem(grid, p));
 }
 
-function appendPhotoItem(grid, photo) {
+const lb = {
+  photos: [],
+  idx: 0,
+  open(i) {
+    this.idx = i;
+    document.getElementById('lightbox-img').src = this.photos[i].url;
+    document.getElementById('lightbox').classList.add('open');
+  },
+  go(dir) {
+    this.idx = (this.idx + dir + this.photos.length) % this.photos.length;
+    document.getElementById('lightbox-img').src = this.photos[this.idx].url;
+  },
+  close() {
+    document.getElementById('lightbox').classList.remove('open');
+  }
+};
+
+(function initLightbox() {
   const lightbox = document.getElementById('lightbox');
-  const lightboxImg = document.getElementById('lightbox-img');
+  if (!lightbox) return;
+  document.getElementById('lightbox-close').onclick = () => lb.close();
+  document.getElementById('lightbox-prev').onclick = e => { e.stopPropagation(); lb.go(-1); };
+  document.getElementById('lightbox-next').onclick = e => { e.stopPropagation(); lb.go(1); };
+  lightbox.onclick = e => { if (e.target === lightbox) lb.close(); };
+  document.addEventListener('keydown', e => {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'ArrowLeft') lb.go(-1);
+    if (e.key === 'ArrowRight') lb.go(1);
+    if (e.key === 'Escape') lb.close();
+  });
+  // 터치 스와이프
+  let tx = 0;
+  lightbox.addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  lightbox.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 50) lb.go(dx < 0 ? 1 : -1);
+  });
+})();
+
+function appendPhotoItem(grid, photo) {
+  const idx = lb.photos.length;
+  lb.photos.push(photo);
 
   const div = document.createElement('div');
   div.className = 'photo-item';
   div.innerHTML = `<img src="${photo.url}" alt="${photo.name}" loading="lazy">`;
-  div.addEventListener('click', () => {
-    lightboxImg.src = photo.url;
-    lightbox.classList.add('open');
-  });
+  div.addEventListener('click', () => lb.open(idx));
   grid.appendChild(div);
-
-  document.getElementById('lightbox-close').onclick = () => lightbox.classList.remove('open');
-  lightbox.onclick = e => { if (e.target === lightbox) lightbox.classList.remove('open'); };
 }
