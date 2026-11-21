@@ -468,7 +468,7 @@ nav a:hover {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.9);
+  background: #000;
   z-index: 1000;
   align-items: center;
   justify-content: center;
