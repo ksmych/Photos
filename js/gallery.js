@@ -76,21 +76,23 @@ async function initMain() {
   const frameMeta = document.getElementById('frame-meta');
 
   if (allSlides.length > 0) {
-    frameInner.innerHTML = '';
+    const n = allSlides.length;
     let current = 0;
-    const imgs = [];
 
-    allSlides.forEach((s, i) => {
-      const img = document.createElement('img');
-      img.src = s.url;
-      img.alt = s.name;
-      img.loading = 'lazy';
-      img.className = 'frame-img' + (i === 0 ? ' active' : '');
-      frameInner.appendChild(img);
-      imgs.push(img);
+    // 액자 구조: 왼쪽(흐림) | 중앙(선명) | 오른쪽(흐림)
+    frameInner.innerHTML = `
+      <img class="frame-side" id="frame-left" src="">
+      <img class="frame-center" id="frame-center" src="">
+      <img class="frame-side" id="frame-right" src="">`;
 
+    const leftImg   = document.getElementById('frame-left');
+    const centerImg = document.getElementById('frame-center');
+    const rightImg  = document.getElementById('frame-right');
+
+    // 도트 생성
+    allSlides.forEach((_, i) => {
       const dot = document.createElement('span');
-      dot.className = 'dot' + (i === 0 ? ' active' : '');
+      dot.className = 'dot';
       dot.addEventListener('click', () => goTo(i));
       frameDots.appendChild(dot);
     });
@@ -100,19 +102,19 @@ async function initMain() {
       frameMeta.textContent = s.album ? `${s.dept} · ${s.album}` : s.dept;
     }
 
-    function goTo(n) {
-      imgs[current].classList.remove('active');
-      frameDots.children[current].classList.remove('active');
-      current = (n + allSlides.length) % allSlides.length;
-      imgs[current].classList.add('active');
-      frameDots.children[current].classList.add('active');
+    function goTo(idx) {
+      current = (idx + n) % n;
+      leftImg.src   = allSlides[(current - 1 + n) % n].url;
+      centerImg.src = allSlides[current].url;
+      rightImg.src  = allSlides[(current + 1) % n].url;
+      [...frameDots.children].forEach((d, i) => d.classList.toggle('active', i === current));
       updateMeta();
     }
 
     document.getElementById('frame-prev').addEventListener('click', () => goTo(current - 1));
     document.getElementById('frame-next').addEventListener('click', () => goTo(current + 1));
     setInterval(() => goTo(current + 1), 4500);
-    updateMeta();
+    goTo(0);
   }
 
   // 트리 디렉토리
