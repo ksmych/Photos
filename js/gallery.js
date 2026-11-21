@@ -131,12 +131,6 @@ async function initMain() {
     deptLink.href = `dept.html?id=${dept.id}`;
     deptLink.className = 'tree-dept-name';
     deptLink.innerHTML = `<span class="tree-icon">📁</span> ${dept.name}`;
-    if (totalPhotos > 0) {
-      const count = document.createElement('span');
-      count.className = 'tree-count';
-      count.textContent = `${totalPhotos}장`;
-      deptLink.appendChild(count);
-    }
     deptEl.appendChild(deptLink);
 
     if (albums.length > 0) {
@@ -148,7 +142,7 @@ async function initMain() {
         li.className = 'tree-album';
         const a = document.createElement('a');
         a.href = `dept.html?id=${dept.id}&album=${encodeURIComponent(album.name)}`;
-        a.innerHTML = `<span class="tree-line">${isLast ? '└──' : '├──'}</span> ${album.name} <span class="tree-album-count">${album.photos.length}장</span>`;
+        a.innerHTML = `<span class="tree-line">${isLast ? '└──' : '├──'}</span> ${album.name}`;
         li.appendChild(a);
         albumList.appendChild(li);
       });
