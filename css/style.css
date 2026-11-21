@@ -133,11 +133,13 @@ nav a:hover {
 }
 
 .frame-inner {
-  width: 100%;
-  height: min(500px, 60vh);
+  aspect-ratio: 3/4;
+  height: min(520px, 70vh);
+  width: auto;
   display: flex;
   align-items: stretch;
   overflow: hidden;
+  margin: 0 auto;
 }
 
 .frame-side {
