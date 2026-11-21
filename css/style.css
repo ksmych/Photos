@@ -589,18 +589,35 @@ footer {
 @media (max-width: 768px) {
   .main-layout {
     grid-template-columns: 1fr;
-    padding: 0 1rem;
+    gap: 1rem;
+    padding: 0 0.75rem;
+    margin: 1rem auto;
   }
   .tree-col {
-    order: -1;
+    order: 2;
   }
-  .hero-section { height: 240px; }
-  .hero-title { font-size: 1.3rem; }
+  .frame-col {
+    order: 1;
+  }
+  .hero-section { height: 200px; }
+  .hero-title { font-size: 1.2rem; }
+  .hero-sub { font-size: 0.85rem; }
+  .frame-inner { height: 300px; }
+  .frame-side { width: 12%; }
+  .photo-frame {
+    box-shadow:
+      0 0 0 5px #2c2c2c,
+      0 0 0 7px #555,
+      0 0 0 10px #2c2c2c,
+      0 4px 16px rgba(0,0,0,0.4);
+  }
 }
 
 @media (max-width: 600px) {
+  header { padding: 0 1rem; }
+  nav { display: none; }
   .dept-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0 1rem 2rem; }
   .dept-card-thumb { height: 120px; }
   .photo-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 1rem; }
-  nav { display: none; }
+  .dept-header { padding: 1.5rem 1rem 1rem; }
 }
