@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>부서 사진 | 경산목양교회</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <a class="logo" href="index.html">경산목양교회 <span>우리들의 이야기</span></a>
+  <nav>
+    <a href="index.html">홈</a>
+    <a href="dept.html?id=church-events">교회행사</a>
+    <a href="dept.html?id=newcomers">새가족</a>
+    <a href="dept.html?id=mens">남전도회</a>
+    <a href="dept.html?id=womens1">1여전도회</a>
+    <a href="dept.html?id=womens2">2여전도회</a>
+    <a href="dept.html?id=youth">청년부</a>
+    <a href="dept.html?id=teens">중고등부</a>
+    <a href="dept.html?id=kids">유초등부</a>
+  </nav>
+</header>
+
+<div class="dept-header">
+  <h1 id="dept-name"></h1>
+  <p id="dept-desc"></p>
+</div>
+
+<div class="photo-grid" id="photo-grid"></div>
+
+<footer>
+  경산목양교회 · 우리들의 이야기
+</footer>
+
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightbox-close">&times;</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script src="js/gallery.js"></script>
+<script>initDept();</script>
+
+</body>
+</html>

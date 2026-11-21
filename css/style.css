@@ -1,0 +1,333 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --primary: #2c3e50;
+  --accent: #c0392b;
+  --bg: #fafafa;
+  --text: #333;
+  --light: #f0f0f0;
+  --white: #ffffff;
+}
+
+body {
+  font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* 헤더 */
+header {
+  background: var(--white);
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 60px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: none;
+  letter-spacing: -0.5px;
+}
+
+.logo span {
+  color: var(--accent);
+}
+
+nav a {
+  margin-left: 1.5rem;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+
+nav a:hover {
+  color: var(--accent);
+}
+
+/* 메인 슬라이드쇼 */
+.slideshow-section {
+  background: var(--primary);
+  position: relative;
+  overflow: hidden;
+  height: 480px;
+}
+
+.slideshow-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+.slide.active {
+  opacity: 1;
+}
+
+.slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slide-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  color: white;
+  padding: 2rem 2rem 1.5rem;
+}
+
+.slide-caption .dept {
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.slide-caption .filename {
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+.slide-dots {
+  position: absolute;
+  bottom: 1rem;
+  right: 1.5rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dot.active {
+  background: white;
+}
+
+.no-photos-msg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(255,255,255,0.5);
+  font-size: 0.9rem;
+}
+
+/* 타이틀 섹션 */
+.section-title {
+  text-align: center;
+  padding: 3rem 1rem 2rem;
+}
+
+.section-title h2 {
+  font-size: 1.5rem;
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.section-title p {
+  color: #888;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+
+/* 부서 그리드 */
+.dept-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  padding: 0 2rem 4rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dept-card {
+  background: var(--white);
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dept-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+
+.dept-card-thumb {
+  height: 180px;
+  background: var(--light);
+  overflow: hidden;
+  position: relative;
+}
+
+.dept-card-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.dept-card-thumb .thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #bbb;
+  font-size: 0.85rem;
+}
+
+.dept-card-info {
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dept-card-info h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.dept-card-info .count {
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+/* 부서 페이지 */
+.dept-header {
+  background: var(--primary);
+  color: white;
+  padding: 2.5rem 2rem 2rem;
+}
+
+.dept-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.dept-header p {
+  margin-top: 0.4rem;
+  opacity: 0.7;
+  font-size: 0.875rem;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.photo-item {
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  border-radius: 6px;
+  cursor: pointer;
+  background: var(--light);
+}
+
+.photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.photo-item:hover img {
+  transform: scale(1.05);
+}
+
+.empty-state {
+  grid-column: 1/-1;
+  text-align: center;
+  padding: 4rem 1rem;
+  color: #bbb;
+}
+
+/* 라이트박스 */
+.lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.9);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox.open {
+  display: flex;
+}
+
+.lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+  opacity: 0.7;
+  background: none;
+  border: none;
+}
+
+.lightbox-close:hover {
+  opacity: 1;
+}
+
+/* 푸터 */
+footer {
+  text-align: center;
+  padding: 2rem;
+  color: #aaa;
+  font-size: 0.8rem;
+  border-top: 1px solid #e0e0e0;
+}
+
+/* 반응형 */
+@media (max-width: 600px) {
+  .slideshow-section { height: 280px; }
+  .dept-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0 1rem 2rem; }
+  .dept-card-thumb { height: 120px; }
+  .photo-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 1rem; }
+  nav { display: none; }
+}
