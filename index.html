@@ -6,7 +6,7 @@
   <title>우리들의 이야기 | 경산목양교회</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=16">
+  <link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body>
 
@@ -65,7 +65,19 @@
 </footer>
 
 <script src="js/gallery.js?v=7"></script>
-<script>initMain();</script>
+<script>
+initMain();
+(function() {
+  const header = document.querySelector('header');
+  let lastY = 0;
+  window.addEventListener('scroll', () => {
+    const y = window.scrollY;
+    if (y > lastY && y > 60) header.classList.add('header-hidden');
+    else header.classList.remove('header-hidden');
+    lastY = y;
+  }, { passive: true });
+})();
+</script>
 
 </body>
 </html>
