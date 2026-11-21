@@ -58,87 +58,266 @@ nav a:hover {
   color: var(--accent);
 }
 
-/* 메인 슬라이드쇼 */
-.slideshow-section {
+/* 대표 사진 (히어로) */
+.hero-section {
   background: var(--primary);
   position: relative;
+  height: 420px;
   overflow: hidden;
-  height: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.slideshow-container {
-  width: 100%;
-  height: 100%;
-  position: relative;
-}
-
-.slide {
+.hero-section img {
   position: absolute;
   inset: 0;
-  opacity: 0;
-  transition: opacity 0.8s ease;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.7;
 }
 
-.slide.active {
-  opacity: 1;
+.hero-overlay {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  color: white;
 }
 
-.slide img {
+.hero-title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.hero-sub {
+  font-size: 1rem;
+  margin-top: 0.5rem;
+  opacity: 0.85;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* 2단 메인 레이아웃 */
+.main-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 2rem auto;
+  padding: 0 2rem;
+  align-items: start;
+}
+
+/* 액자 슬라이드쇼 */
+.frame-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.photo-frame {
+  width: 100%;
+  position: relative;
+  background: #111;
+  border-radius: 4px;
+  box-shadow:
+    0 0 0 8px #2c2c2c,
+    0 0 0 10px #555,
+    0 0 0 14px #2c2c2c,
+    0 8px 32px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+.frame-inner {
+  width: 100%;
+  min-height: 340px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.frame-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.7s ease;
 }
 
-.slide-caption {
+.frame-img.active {
+  opacity: 1;
+}
+
+.frame-empty {
+  color: #666;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.frame-arrow {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0,0,0,0.4);
   color: white;
-  padding: 2rem 2rem 1.5rem;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 1.4rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.2s;
+  line-height: 1;
 }
 
-.slide-caption .dept {
-  font-size: 0.75rem;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  opacity: 0.8;
+.frame-arrow:hover {
+  background: rgba(0,0,0,0.7);
 }
 
-.slide-caption .filename {
-  font-size: 0.95rem;
-  margin-top: 0.25rem;
+.frame-prev { left: 0.6rem; }
+.frame-next { right: 0.6rem; }
+
+.frame-meta {
+  font-size: 0.8rem;
+  color: #888;
+  text-align: center;
 }
 
-.slide-dots {
-  position: absolute;
-  bottom: 1rem;
-  right: 1.5rem;
+.frame-dots {
   display: flex;
   gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: rgba(255,255,255,0.5);
+  background: #ccc;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .dot.active {
-  background: white;
+  background: var(--primary);
 }
 
-.no-photos-msg {
+/* 트리 디렉토리 */
+.tree-col {
+  background: var(--white);
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.875rem;
+}
+
+.tree-header {
+  font-weight: 700;
+  color: var(--primary);
+  font-size: 0.95rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: rgba(255,255,255,0.5);
+  gap: 0.4rem;
+}
+
+.tree-header::before {
+  content: '🏠';
+}
+
+.tree-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tree-dept {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.tree-dept-name {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.2rem 0;
+  transition: color 0.15s;
+}
+
+.tree-dept-name:hover {
+  color: var(--accent);
+}
+
+.tree-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #aaa;
+  font-weight: 400;
+}
+
+.tree-icon {
   font-size: 0.9rem;
+}
+
+.tree-albums {
+  list-style: none;
+  margin-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.tree-album a {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #555;
+  text-decoration: none;
+  padding: 0.15rem 0;
+  font-size: 0.82rem;
+  transition: color 0.15s;
+}
+
+.tree-album a:hover {
+  color: var(--accent);
+}
+
+.tree-line {
+  color: #bbb;
+  font-family: monospace;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.tree-album-count {
+  margin-left: auto;
+  color: #bbb;
+  font-size: 0.75rem;
+}
+
+.tree-loading {
+  color: #bbb;
+  font-size: 0.85rem;
+  padding: 1rem 0;
 }
 
 /* 타이틀 섹션 */
@@ -407,8 +586,19 @@ footer {
 }
 
 /* 반응형 */
+@media (max-width: 768px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+    padding: 0 1rem;
+  }
+  .tree-col {
+    order: -1;
+  }
+  .hero-section { height: 240px; }
+  .hero-title { font-size: 1.3rem; }
+}
+
 @media (max-width: 600px) {
-  .slideshow-section { height: 280px; }
   .dept-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0 1rem 2rem; }
   .dept-card-thumb { height: 120px; }
   .photo-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 1rem; }

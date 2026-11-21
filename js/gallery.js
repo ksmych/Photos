@@ -44,73 +44,119 @@ function getAllPhotos(deptData) {
 
 /* ── 메인 페이지 ── */
 async function initMain() {
-  const slideshowEl = document.getElementById('slideshow');
-  const dotsEl = document.getElementById('dots');
-  const deptGridEl = document.getElementById('dept-grid');
-
   const manifest = await loadManifest();
 
-  // 슬라이드쇼 — 각 부서 최신 사진 최대 3장
+  // 전체 사진 수집 (부서 + 앨범 메타 포함)
   const allSlides = [];
   for (const dept of DEPARTMENTS) {
     const deptData = getDept(manifest, dept.id);
-    const photos = getAllPhotos(deptData).slice(0, 3);
-    photos.forEach(p => allSlides.push({ dept: dept.name, ...p }));
+    if (!deptData) continue;
+    for (const album of (deptData.albums || [])) {
+      for (const photo of (album.photos || [])) {
+        allSlides.push({ dept: dept.name, album: album.name, deptId: dept.id, ...photo });
+      }
+    }
+    for (const photo of (deptData.directPhotos || [])) {
+      allSlides.push({ dept: dept.name, album: null, deptId: dept.id, ...photo });
+    }
   }
 
-  if (allSlides.length === 0) {
-    slideshowEl.innerHTML = '<div class="no-photos-msg">아직 사진이 없습니다</div>';
-  } else {
-    allSlides.sort(() => Math.random() - 0.5);
+  // 대표 사진 (히어로) — church-events 첫 사진 우선
+  const heroImg = document.getElementById('hero-img');
+  const heroFirst = allSlides.find(s => s.deptId === 'church-events') || allSlides[0];
+  if (heroFirst) {
+    heroImg.src = heroFirst.url;
+    heroImg.alt = heroFirst.name;
+    heroImg.style.display = '';
+  }
+
+  // 액자 슬라이드쇼
+  const frameInner = document.getElementById('frame-inner');
+  const frameDots = document.getElementById('frame-dots');
+  const frameMeta = document.getElementById('frame-meta');
+
+  if (allSlides.length > 0) {
+    frameInner.innerHTML = '';
+    let current = 0;
+    const imgs = [];
 
     allSlides.forEach((s, i) => {
-      const slide = document.createElement('div');
-      slide.className = 'slide' + (i === 0 ? ' active' : '');
-      slide.innerHTML = `
-        <img src="${s.url}" alt="${s.name}" loading="lazy">
-        <div class="slide-caption"><div class="dept">${s.dept}</div></div>`;
-      slideshowEl.appendChild(slide);
+      const img = document.createElement('img');
+      img.src = s.url;
+      img.alt = s.name;
+      img.loading = 'lazy';
+      img.className = 'frame-img' + (i === 0 ? ' active' : '');
+      frameInner.appendChild(img);
+      imgs.push(img);
 
-      const dot = document.createElement('div');
+      const dot = document.createElement('span');
       dot.className = 'dot' + (i === 0 ? ' active' : '');
       dot.addEventListener('click', () => goTo(i));
-      dotsEl.appendChild(dot);
+      frameDots.appendChild(dot);
     });
 
-    let current = 0;
-    const slides = slideshowEl.querySelectorAll('.slide');
-    const dots = dotsEl.querySelectorAll('.dot');
-
-    function goTo(n) {
-      slides[current].classList.remove('active');
-      dots[current].classList.remove('active');
-      current = (n + slides.length) % slides.length;
-      slides[current].classList.add('active');
-      dots[current].classList.add('active');
+    function updateMeta() {
+      const s = allSlides[current];
+      frameMeta.textContent = s.album ? `${s.dept} · ${s.album}` : s.dept;
     }
 
-    setInterval(() => goTo(current + 1), 4000);
+    function goTo(n) {
+      imgs[current].classList.remove('active');
+      frameDots.children[current].classList.remove('active');
+      current = (n + allSlides.length) % allSlides.length;
+      imgs[current].classList.add('active');
+      frameDots.children[current].classList.add('active');
+      updateMeta();
+    }
+
+    document.getElementById('frame-prev').addEventListener('click', () => goTo(current - 1));
+    document.getElementById('frame-next').addEventListener('click', () => goTo(current + 1));
+    setInterval(() => goTo(current + 1), 4500);
+    updateMeta();
   }
 
-  // 부서 카드
-  DEPARTMENTS.forEach(dept => {
-    const deptData = getDept(manifest, dept.id);
-    const thumb = getThumb(deptData);
+  // 트리 디렉토리
+  const treeNav = document.getElementById('tree-nav');
+  treeNav.innerHTML = '';
 
-    const a = document.createElement('a');
-    a.className = 'dept-card';
-    a.href = `dept.html?id=${dept.id}`;
-    a.innerHTML = `
-      <div class="dept-card-thumb">
-        ${thumb
-          ? `<img src="${thumb}" alt="${dept.name}" loading="lazy">`
-          : `<div class="thumb-placeholder">사진 없음</div>`}
-      </div>
-      <div class="dept-card-info">
-        <h3>${dept.name}</h3>
-      </div>`;
-    deptGridEl.appendChild(a);
-  });
+  for (const dept of DEPARTMENTS) {
+    const deptData = getDept(manifest, dept.id);
+    const albums = deptData?.albums || [];
+    const totalPhotos = getAllPhotos(deptData).length;
+
+    const deptEl = document.createElement('div');
+    deptEl.className = 'tree-dept';
+
+    const deptLink = document.createElement('a');
+    deptLink.href = `dept.html?id=${dept.id}`;
+    deptLink.className = 'tree-dept-name';
+    deptLink.innerHTML = `<span class="tree-icon">📁</span> ${dept.name}`;
+    if (totalPhotos > 0) {
+      const count = document.createElement('span');
+      count.className = 'tree-count';
+      count.textContent = `${totalPhotos}장`;
+      deptLink.appendChild(count);
+    }
+    deptEl.appendChild(deptLink);
+
+    if (albums.length > 0) {
+      const albumList = document.createElement('ul');
+      albumList.className = 'tree-albums';
+      albums.slice().reverse().forEach((album, i, arr) => {
+        const isLast = i === arr.length - 1;
+        const li = document.createElement('li');
+        li.className = 'tree-album';
+        const a = document.createElement('a');
+        a.href = `dept.html?id=${dept.id}&album=${encodeURIComponent(album.name)}`;
+        a.innerHTML = `<span class="tree-line">${isLast ? '└──' : '├──'}</span> ${album.name} <span class="tree-album-count">${album.photos.length}장</span>`;
+        li.appendChild(a);
+        albumList.appendChild(li);
+      });
+      deptEl.appendChild(albumList);
+    }
+
+    treeNav.appendChild(deptEl);
+  }
 }
 
 /* ── 부서 페이지 ── */
