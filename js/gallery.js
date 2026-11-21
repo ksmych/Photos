@@ -46,25 +46,29 @@ function getAllPhotos(deptData) {
 async function initMain() {
   const manifest = await loadManifest();
 
-  // 전체 사진 수집 (부서 + 앨범 메타 포함)
-  const allSlides = [];
+  // 가장 최근 앨범 찾기 (앨범 이름 내림차순 → 알파벳/날짜 기준 최신)
+  const allAlbums = [];
   for (const dept of DEPARTMENTS) {
     const deptData = getDept(manifest, dept.id);
     if (!deptData) continue;
     for (const album of (deptData.albums || [])) {
-      for (const photo of (album.photos || [])) {
-        allSlides.push({ dept: dept.name, album: album.name, deptId: dept.id, ...photo });
+      if (album.photos?.length > 0) {
+        allAlbums.push({ deptName: dept.name, deptId: dept.id, album });
       }
     }
-    for (const photo of (deptData.directPhotos || [])) {
-      allSlides.push({ dept: dept.name, album: null, deptId: dept.id, ...photo });
-    }
   }
+  allAlbums.sort((a, b) => b.album.name.localeCompare(a.album.name, 'ko'));
+  const latest = allAlbums[0];
+
+  const allSlides = latest
+    ? latest.album.photos.map(p => ({
+        dept: latest.deptName, album: latest.album.name, deptId: latest.deptId, ...p
+      }))
+    : [];
 
   // 대표 사진 (히어로) — 가로(landscape) 사진 자동 감지, 없으면 첫 사진
   const heroImg = document.getElementById('hero-img');
-  const churchSlides = allSlides.filter(s => s.deptId === 'church-events');
-  const candidates = churchSlides.length > 0 ? churchSlides : allSlides;
+  const candidates = allSlides;
 
   function isLandscape(url) {
     return new Promise(resolve => {
