@@ -144,8 +144,7 @@ nav a:hover {
   width: 18%;
   object-fit: cover;
   flex-shrink: 0;
-  filter: blur(4px) brightness(0.45);
-  transition: src 0.3s;
+  filter: blur(3px) brightness(0.6);
 }
 
 .frame-center {
