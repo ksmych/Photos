@@ -598,14 +598,18 @@ footer {
   }
   .tree-col {
     order: 2;
+    position: static;
+    border-left: 1px solid #e0e0e0;
+    border-radius: 8px;
   }
-  .frame-col {
-    order: 1;
-  }
+  .frame-col { order: 1; }
   .hero-section { height: 200px; }
   .hero-title { font-size: 1.2rem; }
   .hero-sub { font-size: 0.85rem; }
-  .frame-inner { height: auto; aspect-ratio: 3/4; }
+  .frame-inner {
+    height: min(360px, 50vh);
+    aspect-ratio: unset;
+  }
   .frame-side { width: 12%; }
   .photo-frame {
     box-shadow:
