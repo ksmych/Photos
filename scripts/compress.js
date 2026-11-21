@@ -34,6 +34,7 @@ async function compressImage(filePath) {
     // 임시 파일로 저장 후 교체
     const tmpPath = filePath + '.tmp';
     await pipeline
+      .withMetadata()
       .jpeg({ quality: QUALITY, progressive: true })
       .toFile(tmpPath);
 
