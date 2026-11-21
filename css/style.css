@@ -612,18 +612,9 @@ footer {
   .hero-title { font-size: 1.2rem; }
   .hero-sub { font-size: 0.85rem; }
   .frame-inner {
-    height: min(260px, 40vh);
-    aspect-ratio: unset;
-    width: 100%;
-  }
-}
-
-/* 모바일 세로: 3:4 비율 */
-@media (max-width: 768px) and (orientation: portrait) {
-  .frame-inner {
     aspect-ratio: 3/4;
     height: auto;
-    max-height: 60vh;
+    max-height: 70vh;
     width: 100%;
   }
 }
