@@ -1,0 +1,79 @@
+{
+  "updated": "2026-11-21T15:29:53.116Z",
+  "departments": [
+    {
+      "id": "church-events",
+      "name": "교회행사",
+      "albums": [
+        {
+          "name": "2026성례식",
+          "photos": [
+            {
+              "name": "KakaoTalk_20261120_144737733.jpg",
+              "url": "https://raw.githubusercontent.com/ksmych/Photos/main/photos/church-events/2026성례식/KakaoTalk_20261120_144737733.jpg"
+            },
+            {
+              "name": "KakaoTalk_20261120_144737733_02.jpg",
+              "url": "https://raw.githubusercontent.com/ksmych/Photos/main/photos/church-events/2026성례식/KakaoTalk_20261120_144737733_02.jpg"
+            },
+            {
+              "name": "KakaoTalk_20261120_144737733_04.jpg",
+              "url": "https://raw.githubusercontent.com/ksmych/Photos/main/photos/church-events/2026성례식/KakaoTalk_20261120_144737733_04.jpg"
+            },
+            {
+              "name": "KakaoTalk_20261120_144737733_05.jpg",
+              "url": "https://raw.githubusercontent.com/ksmych/Photos/main/photos/church-events/2026성례식/KakaoTalk_20261120_144737733_05.jpg"
+            },
+            {
+              "name": "KakaoTalk_20261120_144737733_06.jpg",
+              "url": "https://raw.githubusercontent.com/ksmych/Photos/main/photos/church-events/2026성례식/KakaoTalk_20261120_144737733_06.jpg"
+            }
+          ]
+        }
+      ],
+      "directPhotos": []
+    },
+    {
+      "id": "newcomers",
+      "name": "새가족",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "mens",
+      "name": "남전도회",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "womens1",
+      "name": "1여전도회",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "womens2",
+      "name": "2여전도회",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "youth",
+      "name": "청년부",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "teens",
+      "name": "중고등부",
+      "albums": [],
+      "directPhotos": []
+    },
+    {
+      "id": "kids",
+      "name": "유초등부",
+      "albums": [],
+      "directPhotos": []
+    }
+  ]
+}
