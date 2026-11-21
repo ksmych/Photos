@@ -1,7 +1,3 @@
-const REPO = 'ksmych/Photos';
-const BRANCH = 'main';
-const API_BASE = `https://api.github.com/repos/${REPO}/contents`;
-
 const DEPARTMENTS = [
   { id: 'church-events', name: '교회행사' },
   { id: 'newcomers',     name: '새가족' },
@@ -13,66 +9,37 @@ const DEPARTMENTS = [
   { id: 'kids',          name: '유초등부' },
 ];
 
-const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-
-function isImage(filename) {
-  return IMAGE_EXTS.includes(filename.split('.').pop().toLowerCase());
-}
-
-function rawUrl(path) {
-  return `https://raw.githubusercontent.com/${REPO}/${BRANCH}/${path}`;
-}
-
-async function fetchContents(path) {
+async function loadManifest() {
   try {
-    const res = await fetch(`${API_BASE}/${path}`);
-    if (!res.ok) return [];
+    const res = await fetch('manifest.json?t=' + Date.now());
+    if (!res.ok) return null;
     return await res.json();
   } catch {
-    return [];
+    return null;
   }
 }
 
-// 부서 폴더에서 앨범(하위폴더) 목록과 직접 사진 모두 가져오기
-async function fetchDeptContents(deptId) {
-  const items = await fetchContents(`photos/${deptId}`);
-  const albums = [];
-  const directPhotos = [];
-
-  for (const item of items) {
-    if (item.type === 'dir') {
-      // 앨범(하위폴더) — 썸네일용 첫 사진 가져오기
-      const albumItems = await fetchContents(item.path);
-      const photos = albumItems
-        .filter(f => f.type === 'file' && isImage(f.name))
-        .map(f => ({ name: f.name, url: rawUrl(f.path) }));
-      albums.push({ name: item.name, photos, thumb: photos[0] || null });
-    } else if (item.type === 'file' && isImage(item.name)) {
-      directPhotos.push({ name: item.name, url: rawUrl(item.path) });
-    }
-  }
-
-  return { albums, directPhotos };
+function getDept(manifest, id) {
+  return manifest?.departments?.find(d => d.id === id);
 }
 
-// 메인 슬라이드쇼용 — 부서별 최신 사진 (앨범 포함)
-async function fetchLatestPhotos(deptId) {
-  const items = await fetchContents(`photos/${deptId}`);
-  const photos = [];
-
-  for (const item of items) {
-    if (item.type === 'dir') {
-      const albumItems = await fetchContents(item.path);
-      albumItems
-        .filter(f => f.type === 'file' && isImage(f.name))
-        .slice(0, 3)
-        .forEach(f => photos.push({ name: f.name, url: rawUrl(f.path) }));
-    } else if (item.type === 'file' && isImage(item.name)) {
-      photos.push({ name: item.name, url: rawUrl(item.path) });
-    }
+function getThumb(deptData) {
+  if (!deptData) return null;
+  const direct = deptData.directPhotos?.[0];
+  if (direct) return direct.url;
+  for (const album of (deptData.albums || [])) {
+    if (album.photos?.[0]) return album.photos[0].url;
   }
+  return null;
+}
 
-  return photos.slice(0, 5);
+function getAllPhotos(deptData) {
+  if (!deptData) return [];
+  const photos = [...(deptData.directPhotos || [])];
+  for (const album of (deptData.albums || [])) {
+    photos.push(...(album.photos || []));
+  }
+  return photos;
 }
 
 /* ── 메인 페이지 ── */
@@ -81,30 +48,16 @@ async function initMain() {
   const dotsEl = document.getElementById('dots');
   const deptGridEl = document.getElementById('dept-grid');
 
+  const manifest = await loadManifest();
+
+  // 슬라이드쇼 — 각 부서 최신 사진 최대 3장
   const allSlides = [];
-  const cards = [];
-
-  await Promise.all(DEPARTMENTS.map(async (dept) => {
-    const photos = await fetchLatestPhotos(dept.id);
+  for (const dept of DEPARTMENTS) {
+    const deptData = getDept(manifest, dept.id);
+    const photos = getAllPhotos(deptData).slice(0, 3);
     photos.forEach(p => allSlides.push({ dept: dept.name, ...p }));
+  }
 
-    const items = await fetchContents(`photos/${dept.id}`);
-    // 썸네일: 직접 사진 또는 첫 앨범의 첫 사진
-    let thumb = null;
-    for (const item of items) {
-      if (item.type === 'file' && isImage(item.name)) {
-        thumb = { url: rawUrl(item.path) };
-        break;
-      } else if (item.type === 'dir' && !thumb) {
-        const albumItems = await fetchContents(item.path);
-        const img = albumItems.find(f => f.type === 'file' && isImage(f.name));
-        if (img) thumb = { url: rawUrl(img.path) };
-      }
-    }
-    cards.push({ dept, thumb });
-  }));
-
-  // 슬라이드쇼
   if (allSlides.length === 0) {
     slideshowEl.innerHTML = '<div class="no-photos-msg">아직 사진이 없습니다</div>';
   } else {
@@ -141,15 +94,16 @@ async function initMain() {
 
   // 부서 카드
   DEPARTMENTS.forEach(dept => {
-    const card = cards.find(c => c.dept.id === dept.id);
-    if (!card) return;
+    const deptData = getDept(manifest, dept.id);
+    const thumb = getThumb(deptData);
+
     const a = document.createElement('a');
     a.className = 'dept-card';
     a.href = `dept.html?id=${dept.id}`;
     a.innerHTML = `
       <div class="dept-card-thumb">
-        ${card.thumb
-          ? `<img src="${card.thumb.url}" alt="${dept.name}" loading="lazy">`
+        ${thumb
+          ? `<img src="${thumb}" alt="${dept.name}" loading="lazy">`
           : `<div class="thumb-placeholder">사진 없음</div>`}
       </div>
       <div class="dept-card-info">
@@ -159,7 +113,7 @@ async function initMain() {
   });
 }
 
-/* ── 부서 페이지 (앨범 목록) ── */
+/* ── 부서 페이지 ── */
 async function initDept() {
   const params = new URLSearchParams(location.search);
   const id = params.get('id');
@@ -167,37 +121,42 @@ async function initDept() {
   const dept = DEPARTMENTS.find(d => d.id === id);
   if (!dept) { location.href = 'index.html'; return; }
 
+  const manifest = await loadManifest();
+  const deptData = getDept(manifest, id);
+
   if (albumName) {
-    await initAlbum(dept, id, albumName);
+    await initAlbum(dept, id, albumName, deptData);
   } else {
-    await initDeptMain(dept, id);
+    await initDeptMain(dept, id, deptData);
   }
 }
 
 // 부서 메인 — 앨범 목록
-async function initDeptMain(dept, id) {
+async function initDeptMain(dept, id, deptData) {
   document.title = `${dept.name} | 우리들의 이야기`;
   document.getElementById('dept-name').textContent = dept.name;
   document.getElementById('dept-desc').textContent = `${dept.name} 앨범 목록`;
   document.getElementById('back-btn').style.display = 'none';
 
   const grid = document.getElementById('photo-grid');
-  const { albums, directPhotos } = await fetchDeptContents(id);
+  const albums = deptData?.albums || [];
+  const directPhotos = deptData?.directPhotos || [];
 
   if (albums.length === 0 && directPhotos.length === 0) {
     grid.innerHTML = '<div class="empty-state">아직 사진이 없습니다</div>';
     return;
   }
 
-  // 앨범 카드
-  albums.forEach(album => {
+  // 최신순 (이름 역순)
+  [...albums].reverse().forEach(album => {
     const a = document.createElement('a');
     a.className = 'album-card';
     a.href = `dept.html?id=${id}&album=${encodeURIComponent(album.name)}`;
+    const thumb = album.photos?.[0];
     a.innerHTML = `
       <div class="album-thumb">
-        ${album.thumb
-          ? `<img src="${album.thumb.url}" alt="${album.name}" loading="lazy">`
+        ${thumb
+          ? `<img src="${thumb.url}" alt="${album.name}" loading="lazy">`
           : `<div class="thumb-placeholder">사진 없음</div>`}
       </div>
       <div class="album-info">
@@ -207,19 +166,17 @@ async function initDeptMain(dept, id) {
     grid.appendChild(a);
   });
 
-  // 부서 폴더 직접 사진 (앨범 미분류)
   if (directPhotos.length > 0) {
     const divider = document.createElement('div');
     divider.className = 'section-divider';
     divider.textContent = '기타 사진';
     grid.appendChild(divider);
-
     directPhotos.forEach(p => appendPhotoItem(grid, p));
   }
 }
 
-// 앨범 내부 — 사진 목록
-async function initAlbum(dept, id, albumName) {
+// 앨범 내 사진 목록
+async function initAlbum(dept, id, albumName, deptData) {
   document.title = `${albumName} | ${dept.name}`;
   document.getElementById('dept-name').textContent = albumName;
   document.getElementById('dept-desc').textContent = dept.name;
@@ -229,10 +186,8 @@ async function initAlbum(dept, id, albumName) {
   backBtn.href = `dept.html?id=${id}`;
 
   const grid = document.getElementById('photo-grid');
-  const items = await fetchContents(`photos/${id}/${albumName}`);
-  const photos = items
-    .filter(f => f.type === 'file' && isImage(f.name))
-    .map(f => ({ name: f.name, url: rawUrl(f.path) }));
+  const album = deptData?.albums?.find(a => a.name === albumName);
+  const photos = album?.photos || [];
 
   if (photos.length === 0) {
     grid.innerHTML = '<div class="empty-state">아직 사진이 없습니다</div>';
@@ -255,10 +210,6 @@ function appendPhotoItem(grid, photo) {
   });
   grid.appendChild(div);
 
-  document.getElementById('lightbox-close').addEventListener('click', () => {
-    lightbox.classList.remove('open');
-  });
-  lightbox.addEventListener('click', e => {
-    if (e.target === lightbox) lightbox.classList.remove('open');
-  });
+  document.getElementById('lightbox-close').onclick = () => lightbox.classList.remove('open');
+  lightbox.onclick = e => { if (e.target === lightbox) lightbox.classList.remove('open'); };
 }
