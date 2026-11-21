@@ -103,11 +103,9 @@ nav a:hover {
 /* 2단 메인 레이아웃 */
 .main-layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 2rem;
-  max-width: 1200px;
-  margin: 2rem auto;
-  padding: 0 2rem;
+  grid-template-columns: 1fr 260px;
+  gap: 0;
+  margin: 2rem 0 2rem 2rem;
   align-items: start;
 }
 
@@ -593,8 +591,8 @@ footer {
   .main-layout {
     grid-template-columns: 1fr;
     gap: 1rem;
-    padding: 0 0.75rem;
     margin: 1rem auto;
+    padding: 0 0.75rem;
   }
   .tree-col {
     order: 2;
@@ -607,7 +605,7 @@ footer {
   .hero-title { font-size: 1.2rem; }
   .hero-sub { font-size: 0.85rem; }
   .frame-inner {
-    height: min(360px, 50vh);
+    height: min(260px, 40vh);
     aspect-ratio: unset;
   }
   .frame-side { width: 12%; }
