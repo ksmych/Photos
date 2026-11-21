@@ -134,7 +134,7 @@ nav a:hover {
 
 .frame-inner {
   width: 100%;
-  aspect-ratio: 3/4;
+  height: min(500px, 60vh);
   display: flex;
   align-items: stretch;
   overflow: hidden;
