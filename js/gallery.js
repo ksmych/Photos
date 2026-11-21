@@ -61,14 +61,31 @@ async function initMain() {
     }
   }
 
-  // 대표 사진 (히어로) — church-events 첫 사진 우선
+  // 대표 사진 (히어로) — 가로(landscape) 사진 자동 감지, 없으면 첫 사진
   const heroImg = document.getElementById('hero-img');
-  const heroFirst = allSlides.find(s => s.deptId === 'church-events') || allSlides[0];
-  if (heroFirst) {
-    heroImg.src = heroFirst.url;
-    heroImg.alt = heroFirst.name;
-    heroImg.style.display = '';
+  const churchSlides = allSlides.filter(s => s.deptId === 'church-events');
+  const candidates = churchSlides.length > 0 ? churchSlides : allSlides;
+
+  function isLandscape(url) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img.naturalWidth > img.naturalHeight);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
   }
+
+  (async () => {
+    let hero = candidates[0];
+    for (const s of candidates) {
+      if (await isLandscape(s.url)) { hero = s; break; }
+    }
+    if (hero) {
+      heroImg.src = hero.url;
+      heroImg.alt = hero.name;
+      heroImg.style.display = '';
+    }
+  })();
 
   // 액자 슬라이드쇼
   const frameInner = document.getElementById('frame-inner');
