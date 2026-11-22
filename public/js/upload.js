@@ -16,9 +16,15 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     return;
   }
   const { depts } = await api('/api/manage/depts');
-  showStart();
+  // 카카오톡 등에서 "공유 → 사진첩" 으로 넘어온 사진
+  let shared = [];
+  const sharedFlag = param('shared');
+  if (sharedFlag === '1') shared = await takeSharedFiles();
+  if (sharedFlag) history.replaceState(null, '', '/upload.html');
+  showStart(sharedFlag === 'fail' || (sharedFlag === '1' && !shared.length)
+    ? '공유한 사진을 받지 못했습니다. 아래에서 앨범을 만든 뒤 "사진 고르기"로 올려 주세요.' : null);
 
-  async function showStart() {
+  async function showStart(warn) {
     const deptSel = h('select', { required: true },
       h('option', { value: '' }, '부서를 고르세요'),
       depts.map(d => h('option', { value: d.id }, d.name)));
@@ -26,22 +32,36 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     const date = h('input', { type: 'date', value: new Date().toLocaleDateString('sv-SE') });
     const msg = h('div', { class: 'error', role: 'alert' });
     const form = h('form', { class: 'form' },
-      h('p', {}, `${me.name || me.email} 님, 새 앨범을 만들어 사진을 올립니다.`),
+      shared.length
+        ? h('p', { style: 'font-weight:700;color:var(--ok)' }, `공유한 사진 ${shared.length}장을 받았습니다. 새 앨범을 만들거나, 아래 "내가 올린 앨범"에서 고르세요.`)
+        : h('p', {}, `${me.name || me.email} 님, 새 앨범을 만들어 사진을 올립니다.`),
+      warn ? h('p', { class: 'error' }, warn) : null,
       h('label', {}, '① 부서', deptSel),
       h('label', {}, '② 앨범 이름', title),
       h('label', {}, '③ 행사 날짜', date),
       msg,
-      h('button', { class: 'btn', type: 'submit' }, '다음: 사진 고르기'));
+      h('button', { class: 'btn', type: 'submit' }, shared.length ? `이 앨범에 ${shared.length}장 올리기` : '다음: 사진 고르기'));
     form.addEventListener('submit', async e => {
       e.preventDefault();
       msg.textContent = '';
       try {
         const { album } = await api('/api/manage/albums', {
           json: { dept_id: deptSel.value, title: title.value, event_date: date.value || null } });
-        showPick(album);
+        useAlbum(album);
       } catch (err) { msg.textContent = err.message; }
     });
     content.replaceChildren(form, h('h2', {}, '내가 올린 앨범'), await myAlbums());
+    if (!shared.length) content.append(installHint());
+  }
+
+  function useAlbum(album) {
+    if (shared.length) {
+      const files = shared;
+      shared = [];
+      runUpload(album, files);
+    } else {
+      showPick(album);
+    }
   }
 
   async function myAlbums() {
@@ -53,7 +73,8 @@ const THUMB_MAX = 480;  // 목록용 긴 변
         h('div', {},
           h('strong', {}, a.title), ' ', h('span', { class: `badge ${a.status}` }, label[a.status]),
           h('div', { class: 'meta' }, `${a.dept_name} · 사진 ${a.count}장`)),
-        a.status === 'pending' ? h('button', { class: 'btn secondary small', onclick: () => showPick(a) }, '사진 더 올리기') : null)));
+        a.status === 'pending' ? h('button', { class: 'btn secondary small', onclick: () => useAlbum(a) },
+          shared.length ? `여기에 ${shared.length}장 올리기` : '사진 더 올리기') : null)));
   }
 
   function showPick(album) {
@@ -104,6 +125,49 @@ const THUMB_MAX = 480;  // 목록용 긴 변
         h('button', { class: 'btn secondary', onclick: showStart }, '처음으로')));
   }
 })();
+
+// 서비스 워커(sw.js)가 보관해 둔 공유 사진을 꺼내고 지웁니다.
+async function takeSharedFiles() {
+  try {
+    const db = await new Promise((resolve, reject) => {
+      const req = indexedDB.open('shared-photos', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('files');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    const files = await new Promise((resolve, reject) => {
+      const tx = db.transaction('files', 'readwrite');
+      const store = tx.objectStore('files');
+      const get = store.get('pending');
+      get.onsuccess = () => { store.delete('pending'); };
+      tx.oncomplete = () => resolve(get.result || []);
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+// 홈 화면에 설치하면 카카오톡 "공유" 목록에 사진첩이 나타납니다 (안드로이드).
+let installEvent = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvent = e; });
+
+function installHint() {
+  if (window.matchMedia('(display-mode: standalone)').matches) return '';
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  return h('div', { class: 'panel', style: 'margin-top:1rem' },
+    h('h3', {}, '카카오톡에서 바로 올리기'),
+    isIOS
+      ? h('p', {}, '아이폰은 카카오톡 사진을 먼저 "사진 앱에 저장"한 뒤 이 화면에서 골라 올려 주세요.')
+      : h('div', {},
+          h('p', {}, '이 화면을 휴대폰에 설치해 두면, 카카오톡에서 사진을 길게 눌러 공유 → "사진첩"을 골라 바로 올릴 수 있습니다.'),
+          h('button', { class: 'btn secondary', style: 'margin-top:0.6rem', onclick: async () => {
+            if (installEvent) { installEvent.prompt(); installEvent = null; }
+            else alert('크롬이나 삼성 인터넷 메뉴(⋮ 또는 ≡)에서 "홈 화면에 추가" 또는 "앱 설치"를 눌러 주세요.');
+          } }, '📲 휴대폰에 설치하기')));
+}
 
 async function decode(file) {
   if ('createImageBitmap' in window) {

@@ -105,3 +105,8 @@ const lightbox = (() => {
   }
   return { open, close };
 })();
+
+// 홈 화면 설치와 "공유 → 사진첩" 을 위한 서비스 워커
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
