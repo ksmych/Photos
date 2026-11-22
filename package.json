@@ -1,0 +1,11 @@
+{
+  "name": "gsmy-photos",
+  "private": true,
+  "scripts": {
+    "db:local": "wrangler d1 execute gsmy-photos --local --file=schema.sql",
+    "dev": "wrangler pages dev"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  }
+}

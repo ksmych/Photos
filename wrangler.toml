@@ -1,0 +1,20 @@
+# Cloudflare Pages 설정. 실제 database_id 는 Cloudflare에서 D1을 만든 뒤 채웁니다.
+name = "gsmy-photos"
+pages_build_output_dir = "public"
+compatibility_date = "2024-11-01"
+
+[vars]
+# 관리자(승인권자) 이메일. 여러 명이면 쉼표로 구분.
+ADMIN_EMAILS = ""
+# Cloudflare Access 팀 주소 (예: gsmy.cloudflareaccess.com) 와 앱 AUD 값
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gsmy-photos"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "gsmy-photos"
