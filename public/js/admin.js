@@ -121,9 +121,9 @@
       h('h3', {}, '★ 지금 메인 슬라이드쇼'),
       h('p', {}, h('strong', {}, `${deptName(featured.album.dept_id)} · ${featured.album.title}`)),
       h('p', { class: 'meta' }, `${featured.chosen_by === 'auto' ? '가장 최근 앨범이라 자동으로' : '목사님이 직접'} 걸렸습니다. `,
-        left ? `${until.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}까지는 새 앨범이 올라와도 바뀌지 않습니다.`
-             : '유지 기간이 지나서, 새 앨범이 올라오면 그 앨범으로 바뀝니다.'),
-      h('p', { class: 'meta' }, '바꾸시려면 아래 앨범에서 "★ 메인에 걸기"를 누르세요. 그 앨범도 그때부터 1주일 유지됩니다.'),
+        left ? `${new Date(until - 1).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'Asia/Seoul' })} 밤 자정까지 걸려 있고, 그때 한 주 동안 올라온 가장 최근 앨범으로 바뀝니다.`
+             : ''),
+      h('p', { class: 'meta' }, '지금 바꾸시려면 아래 앨범에서 "★ 메인에 걸기"를 누르세요. 그 앨범이 다음 주일 밤 자정까지 걸립니다.'),
       featured.chosen_by !== 'auto' ? h('button', { class: 'btn secondary small', onclick: async () => {
         if (!confirm('직접 고른 것을 취소하고, 가장 최근 앨범이 자동으로 걸리게 할까요?')) return;
         await api('/api/manage/featured/auto', { method: 'POST' });

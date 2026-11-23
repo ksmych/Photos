@@ -8,7 +8,6 @@ const MAX_ORIGINAL = 60 * 1024 * 1024;   // 원본 한 장 최대 60MB
 const MAX_WEB = 8 * 1024 * 1024;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const REJECT_KEEP_DAYS = 7;   // 자동으로 걸러진 사진을 되살릴 수 있는 기간
-const FEATURE_DAYS = 7;       // 메인 슬라이드쇼에 한 번 걸린 앨범을 유지하는 최소 기간
 
 export async function onRequest(context) {
   const { request, env, params } = context;
@@ -60,20 +59,29 @@ async function albumPhotos(env, albumId, { all = false } = {}) {
   return results.map(p => ({ ...p, qc_flags: p.qc_flags ? JSON.parse(p.qc_flags) : [] }));
 }
 
-// 지금 메인 슬라이드쇼에 걸 앨범. 걸린 지 7일이 안 됐으면 그대로, 지났거나 내려졌으면 가장 최근 앨범으로 바꿉니다.
+// 걸린 때(UTC 문자열) 다음에 오는 첫 월요일 0시(한국 시간)를 UTC 밀리초로
+function nextMondayKst(since) {
+  const KST = 9 * 3600000;
+  const k = new Date(Date.parse(since.replace(' ', 'T') + 'Z') + KST);
+  const days = ((8 - k.getUTCDay()) % 7) || 7;
+  return Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + days) - KST;
+}
+
+// 지금 메인 슬라이드쇼에 걸 앨범. 걸린 뒤 첫 월요일 0시(주일 밤 자정)까지는 그대로 두고,
+// 그때가 지났거나 걸린 앨범이 내려졌으면 공개 부서의 가장 최근 앨범으로 바꿉니다.
 async function currentFeatured(env) {
   const depts = await listDepts(env);
   const open = depts.filter(d => d.access === 'public').map(d => d.id);
   const cur = await env.DB.prepare(
-    "SELECT album_id, since, chosen_by, julianday('now') - julianday(since) AS age FROM featured ORDER BY id DESC LIMIT 1"
+    'SELECT album_id, since, chosen_by FROM featured ORDER BY id DESC LIMIT 1'
   ).first();
   const curAlbum = cur ? await getAlbum(env, cur.album_id) : null;
   const valid = !!curAlbum && curAlbum.status !== 'rejected' && curAlbum.count > 0 && open.includes(curAlbum.dept_id);
   const pack = (album, row) => ({
     album, since: row.since, chosen_by: row.chosen_by,
-    until: new Date(Date.parse(row.since.replace(' ', 'T') + 'Z') + FEATURE_DAYS * 86400000).toISOString(),
+    until: new Date(nextMondayKst(row.since)).toISOString(),
   });
-  if (valid && cur.age < FEATURE_DAYS) return pack(curAlbum, cur);
+  if (valid && Date.now() < nextMondayKst(cur.since)) return pack(curAlbum, cur);
   if (!open.length) return null;
   const marks = open.map(() => '?').join(',');
   const { results } = await env.DB.prepare(
@@ -81,7 +89,6 @@ async function currentFeatured(env) {
   ).bind(...open).all();
   const newest = results.find(a => a.count > 0);
   if (!newest) return valid ? pack(curAlbum, cur) : null;
-  if (valid && newest.id === curAlbum.id) return pack(curAlbum, cur);
   await env.DB.prepare("INSERT INTO featured (album_id, chosen_by) VALUES (?, 'auto')").bind(newest.id).run();
   const row = await env.DB.prepare('SELECT since, chosen_by FROM featured ORDER BY id DESC LIMIT 1').first();
   return pack(newest, row);
@@ -283,7 +290,7 @@ async function manage(parts, method, request, env, user) {
     }
 
     // 아래는 관리자 전용
-    // 메인에 걸기: 이 앨범을 지금부터 메인 슬라이드쇼에 (다시 7일 유지)
+    // 메인에 걸기: 이 앨범을 지금부터 다음 월요일 0시까지 메인 슬라이드쇼에
     if (action === 'feature' && method === 'POST') {
       const dept = await getDept(env, album.dept_id);
       if (album.status === 'rejected') return fail(400, '내린 앨범은 메인에 걸 수 없습니다');
