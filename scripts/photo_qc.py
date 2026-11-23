@@ -28,7 +28,7 @@ CLIP_RATIO = 0.45         # 거의 검정/흰색 픽셀 비율이 이보다 많�
 BLUR_ABS = 60.0           # 선명도가 이보다 낮으면 무조건 흐림
 BLUR_REL = 0.35           # 앨범 중간값의 35% 보다 낮으면 흐림
 DUP_HAMMING = 10          # 지문(64비트) 차이가 이 이하면 거의 같은 사진
-EYE_BLINK = 0.55          # 눈 감음 점수 (0~1)
+EYE_BLINK = 0.50          # 눈 감음 점수 (0~1)
 FACE_MIN_WIDTH = 0.05     # 화면 폭의 5% 보다 작은 얼굴은 눈 검사에서 뺌
 
 MODEL_URL = ('https://storage.googleapis.com/mediapipe-models/face_landmarker/'
@@ -106,6 +106,11 @@ class EyeChecker:
             (int(W * a), int(H * b), int(W * a + W / 2), int(H * b + H / 2))
             for a in (0, 0.25, 0.5) for b in (0, 0.25, 0.5)
         ]
+        # 멀리 선 사람 얼굴은 반 크기 조각에서도 안 잡혀서, 짧은 변의 1/3 정사각 조각을 반씩 겹쳐 더 봅니다.
+        t = min(W, H) // 3
+        step = t // 2
+        tiles += [(x, y, x + t, y + t)
+                  for y in range(0, H - t + 1, step) for x in range(0, W - t + 1, step)]
         found = []  # (중심x, 중심y, 폭, 눈 감음)
         for x0, y0, x1, y1 in tiles:
             crop = np.ascontiguousarray(rgb[y0:y1, x0:x1])
