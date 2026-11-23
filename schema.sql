@@ -84,8 +84,9 @@ INSERT OR IGNORE INTO depts (id, name, sort, access) VALUES
   ('church-events', '교회행사', 1, 'public'),
   ('newcomers',     '새가족',   2, 'public'),
   ('mens',          '남전도회', 3, 'public'),
-  ('womens1',       '1여전도회', 4, 'public'),
-  ('womens2',       '2여전도회', 5, 'public'),
-  ('youth',         '청년부',   6, 'public'),
-  ('teens',         '중고등부', 7, 'members'),
-  ('kids',          '유초등부', 8, 'members');
+  ('anna',          '안나회',   4, 'public'),    -- 여성 어르신 부서
+  ('womens1',       '1여전도회', 5, 'public'),
+  ('womens2',       '2여전도회', 6, 'public'),
+  ('youth',         '청년부',   7, 'public'),
+  ('teens',         '중고등부', 8, 'members'),
+  ('kids',          '유초등부', 9, 'members');
