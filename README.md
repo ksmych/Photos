@@ -56,6 +56,7 @@ GitHub Secrets 에 `GMAIL_USER`, `GMAIL_APP_PASSWORD`(Gmail 앱 비밀번호), `
 2. `wrangler.toml` 의 `database_id` 를 채우고 (예전 schema.sql 로 표를 만들었다면 `migrations/` 의 파일들도 차례로 실행) `npx wrangler d1 execute gsmy-photos --remote --file=schema.sql` 로 표를 만듭니다.
 3. Pages 프로젝트를 이 GitHub 저장소에 연결합니다 (빌드 명령 없음, 출력 폴더 `public`).
 4. Pages 설정의 환경 변수: `ADMIN_EMAILS`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, 비밀 값 `SESSION_SECRET`(긴 임의 문자열).
+   - Zero Trust 팀 도메인을 바꾸면 `ACCESS_TEAM_DOMAIN`(예: `gsmych.cloudflareaccess.com`)도 같이 바꾸고 다시 배포해야 로그인이 됩니다.
 5. Zero Trust → Access 에서 위 다섯 경로를 묶은 앱을 만들고, 정책은 "이메일 확인 번호로 로그인한 누구나"로 둡니다
    (실제 권한은 사이트가 등록 명단으로 확인합니다). 앱의 AUD 값을 `ACCESS_AUD` 에 넣습니다.
 
