@@ -34,7 +34,8 @@ jobs:
         run: python3 scripts/usage_alert.py
 
       - name: 걸러진 지 7일 지난 사진 지우기
-        run: curl -fsS -X POST -H "Authorization: Bearer $QC_TOKEN" "$SITE_URL/api/qc/cleanup"
+        run: |
+          curl -fsS -X POST -H "Authorization: Bearer $QC_TOKEN" "$SITE_URL/api/qc/cleanup"
 
       - name: 검사할 사진이 있는지 확인
         id: check
