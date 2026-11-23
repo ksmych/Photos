@@ -48,22 +48,30 @@ async function accessKeys(team) {
   return keys;
 }
 
-async function verifyAccessJwt(token, env) {
+// 확인에 실패하면 이유를 lastAuthIssue 에 남깁니다 (관리 화면에 보여 줘서 설정 실수를 찾기 쉽게).
+async function verifyAccessJwt(token, env, why) {
   const [h, p, s] = token.split('.');
-  if (!h || !p || !s) return null;
+  if (!h || !p || !s) { why.reason = '로그인 표시(토큰) 모양이 잘못됨'; return null; }
   const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h)));
   const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(p)));
-  const jwk = (await accessKeys(env.ACCESS_TEAM_DOMAIN)).find(k => k.kid === header.kid);
-  if (!jwk) return null;
+  let keys;
+  try { keys = await accessKeys(env.ACCESS_TEAM_DOMAIN); }
+  catch { why.reason = `팀 도메인(${env.ACCESS_TEAM_DOMAIN})에서 인증서를 못 받음: ACCESS_TEAM_DOMAIN 값을 확인`; return null; }
+  const jwk = keys.find(k => k.kid === header.kid);
+  if (!jwk) { why.reason = `토큰을 만든 곳(${payload.iss || '?'})과 ACCESS_TEAM_DOMAIN(${env.ACCESS_TEAM_DOMAIN})이 다름`; return null; }
   const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
   const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, b64urlToBytes(s), enc.encode(`${h}.${p}`));
-  if (!ok) return null;
+  if (!ok) { why.reason = '토큰 서명이 맞지 않음'; return null; }
   const aud = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-  if (!aud.includes(env.ACCESS_AUD)) return null;
-  if (payload.iss !== `https://${env.ACCESS_TEAM_DOMAIN}`) return null;
-  if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
-  return payload.email || null;
+  if (!aud.includes(env.ACCESS_AUD)) { why.reason = 'ACCESS_AUD 값이 로그인 앱의 AUD 와 다름'; return null; }
+  if (payload.iss !== `https://${env.ACCESS_TEAM_DOMAIN}`) { why.reason = `팀 도메인이 다름: 토큰은 ${payload.iss}, 설정은 ${env.ACCESS_TEAM_DOMAIN}`; return null; }
+  if (!payload.exp || payload.exp * 1000 < Date.now()) { why.reason = '로그인 기간이 지남: 다시 로그인 필요'; return null; }
+  if (!payload.email) { why.reason = '토큰에 이메일이 없음'; return null; }
+  return payload.email;
 }
+
+// 요청마다 로그인 실패 이유 (관리 화면 안내용, 비밀 값은 담지 않음)
+export const authIssue = new WeakMap();
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
@@ -77,8 +85,14 @@ export async function getUser(request, env) {
   } else if (env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
     const token = request.headers.get('cf-access-jwt-assertion') || getCookie(request, 'CF_Authorization');
     if (token) {
-      try { email = await verifyAccessJwt(token, env); } catch { email = null; }
+      const why = {};
+      try { email = await verifyAccessJwt(token, env, why); } catch { email = null; why.reason ||= '토큰을 읽지 못함'; }
+      if (!email) authIssue.set(request, why.reason);
+    } else {
+      authIssue.set(request, '로그인 표시(CF_Authorization)가 없음: 아직 로그인 전');
     }
+  } else {
+    authIssue.set(request, 'ACCESS_TEAM_DOMAIN 또는 ACCESS_AUD 설정이 비어 있음');
   }
   if (!email) return null;
   email = email.toLowerCase();

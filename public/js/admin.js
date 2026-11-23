@@ -1,10 +1,16 @@
 // 관리 화면 (목사님 전용): 앨범(메인에 걸기/내리기), 열람 요청, 부서 공개 설정, 올리는 사람·관리자, 원본 백업
 (async function () {
   const content = $('#content');
-  let me;
-  try { me = (await api('/api/me')).user; } catch { me = null; }
+  let me, issue = null;
+  try { const r = await api('/api/me'); me = r.user; issue = r.auth_issue; } catch { me = null; }
   if (!me || me.role !== 'admin') {
-    content.replaceChildren(h('div', { class: 'notice' }, '관리자만 볼 수 있는 화면입니다.'));
+    const why = me
+      ? `${me.email} 으로 로그인되어 있지만 관리자 명단에 없습니다. (Cloudflare 의 ADMIN_EMAILS 값을 확인하세요)`
+      : `로그인이 확인되지 않았습니다.${issue ? ` 이유: ${issue}` : ''}`;
+    content.replaceChildren(h('div', { class: 'notice' },
+      h('p', {}, '관리자만 볼 수 있는 화면입니다.'),
+      h('p', { class: 'error' }, why),
+      h('a', { class: 'btn', href: '/login?next=' + encodeURIComponent('/admin') }, '이메일로 로그인하기')));
     return;
   }
   const { depts } = await api('/api/manage/depts');

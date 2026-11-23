@@ -1,7 +1,7 @@
 // 사진첩 API. 공개(/api/...)와 관리(/api/manage/...)로 나뉩니다.
 import {
   json, fail, getUser, isStaff, isAdmin, hashPassword, deptToken, deptCookieName,
-  canViewDept, timingSafeEqualHex,
+  canViewDept, timingSafeEqualHex, authIssue,
 } from '../_lib/util.js';
 
 const MAX_ORIGINAL = 60 * 1024 * 1024;   // 원본 한 장 최대 60MB
@@ -116,7 +116,7 @@ async function publicApi(parts, method, request, env, user) {
   const [res, id, action] = parts;
 
   if (res === 'me' && method === 'GET') {
-    return json({ user });
+    return json({ user, auth_issue: user ? null : (authIssue.get(request) || null) });
   }
 
   // 첫 화면: 부서 목록 + 메인에 건 최근 앨범(슬라이드쇼) + 새로 올라온 앨범들 (공개 부서만)
