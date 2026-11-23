@@ -14,15 +14,18 @@
 </head>
 <body>
 <header class="site-header"><div class="inner">
-  <a class="logo" href="/">경산목양교회 사진첩<small>우리들의 이야기</small></a>
+  <a class="logo" href="/">경산목양교회 <span>우리들의 이야기</span></a>
+  <nav id="nav" aria-label="부서"></nav>
   <a class="home-btn" href="/">처음으로</a>
 </div></header>
-<main>
-  <a class="btn secondary small back" id="back" href="/">◀ 앨범 목록으로</a>
+<section class="band"><div class="inner">
   <h1 id="title">불러오는 중…</h1>
-  <p id="meta" class="meta"></p>
-  <p style="color:var(--muted);margin:0.3rem 0 0.8rem">사진을 누르면 크게 보입니다.</p>
+  <p id="meta"></p>
+</div></section>
+<main>
+  <p class="hint">사진을 누르면 크게 보입니다.</p>
   <div class="photo-grid" id="grid"></div>
+  <a class="btn secondary small back" id="back" href="/">◀ 앨범 목록으로</a>
 </main>
 <footer class="site-footer">경산목양교회 · 우리들의 이야기<br><a href="/upload.html">사진 올리기</a> · <a href="/admin.html">관리</a></footer>
 <script src="/js/common.js"></script>

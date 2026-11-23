@@ -14,15 +14,24 @@
 </head>
 <body>
 <header class="site-header"><div class="inner">
-  <a class="logo" href="/">경산목양교회 사진첩<small>우리들의 이야기</small></a>
+  <a class="logo" href="/">경산목양교회 <span>우리들의 이야기</span></a>
+  <nav id="nav" aria-label="부서"></nav>
   <a class="home-btn" href="/">처음으로</a>
 </div></header>
-<main>
-  <section id="featured"></section>
-  <h2>부서별 사진</h2>
-  <div class="dept-grid" id="depts"></div>
+<section class="hero" id="hero">
+  <img id="hero-img" alt="" hidden>
+  <div class="hero-text"><div class="hero-title">경산목양교회</div><div class="hero-sub">우리들의 이야기</div></div>
+</section>
+<main class="home">
+  <div class="home-layout">
+    <section class="frame-col" id="featured" aria-label="이번 주 사진"></section>
+    <aside class="tree" aria-label="부서별 앨범">
+      <div class="tree-head">🏠 경산목양교회</div>
+      <div id="tree"><div class="meta">불러오는 중…</div></div>
+    </aside>
+  </div>
   <div id="recent-wrap" hidden>
-    <h2>최근 앨범</h2>
+    <h2 class="section-title">최근 앨범</h2>
     <div class="album-grid" id="recent"></div>
   </div>
 </main>

@@ -145,7 +145,21 @@ async function publicApi(parts, method, request, env, user) {
       ).bind(...open).all();
       recent = rec.filter(a => a.count > 0).slice(0, 6);
     }
-    return json({ depts: depts.map(publicDept), featured, recent });
+    // 오른쪽 목록(트리): 공개 부서마다 최근 앨범 5개
+    const tree = {};
+    if (open.length) {
+      const marks = open.map(() => '?').join(',');
+      const { results: all } = await env.DB.prepare(
+        `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks})
+         ORDER BY COALESCE(a.event_date, substr(a.created_at, 1, 10)) DESC, a.created_at DESC`
+      ).bind(...open).all();
+      for (const a of all) {
+        if (!a.count) continue;
+        const list = (tree[a.dept_id] ||= []);
+        if (list.length < 5) list.push({ id: a.id, title: a.title, count: a.count });
+      }
+    }
+    return json({ depts: depts.map(publicDept), featured, recent, tree });
   }
 
   if (res === 'depts' && id && !action && method === 'GET') {

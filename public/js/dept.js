@@ -14,6 +14,7 @@
       return;
     }
     $('#title').textContent = data.dept.name;
+    $('#sub').textContent = data.dept.access === 'public' ? `${data.dept.name} 앨범 목록` : `🔒 ${data.dept.name} 앨범 목록`;
     document.title = `${data.dept.name} | 경산목양교회`;
 
     if (!data.unlocked && data.dept.access === 'members') return showMembers(data);

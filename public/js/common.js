@@ -49,11 +49,31 @@ function param(name) {
 
 function albumCard(a) {
   return h('a', { class: 'album-card', href: `/album.html?id=${encodeURIComponent(a.id)}` },
-    a.cover ? h('img', { src: img('thumb', a.cover), alt: '', loading: 'lazy' }) : h('div', { class: 'noimg' }),
+    h('div', { class: 'thumb' },
+      a.cover ? h('img', { src: img('thumb', a.cover), alt: '', loading: 'lazy' }) : h('div', { class: 'noimg' }, '📷')),
     h('div', { class: 'info' },
       h('div', { class: 'name' }, a.title),
-      h('div', { class: 'meta' }, [a.event_date ? fmtDate(a.event_date) : null, `사진 ${a.count}장`].filter(Boolean).join(' · '))));
+      h('div', { class: 'count' }, `${a.count}장`)));
 }
+
+/* 머리말의 부서 메뉴 (넓은 화면에서만 보임). 첫 화면 정보로 한 번 만들고 잠시 기억해 둡니다. */
+async function fillNav() {
+  const nav = document.getElementById('nav');
+  if (!nav) return;
+  let depts = null;
+  try { depts = JSON.parse(sessionStorage.getItem('depts') || 'null'); } catch { /* 저장 안 됨 */ }
+  if (!depts) {
+    try {
+      depts = (await api('/api/home')).depts.map(d => ({ id: d.id, name: d.name }));
+      try { sessionStorage.setItem('depts', JSON.stringify(depts)); } catch { /* 저장 안 됨 */ }
+    } catch { return; }
+  }
+  const here = new URLSearchParams(location.search).get('id');
+  nav.replaceChildren(h('a', { href: '/', class: location.pathname === '/' ? 'on' : null }, '홈'),
+    ...depts.map(d => h('a', { href: `/dept.html?id=${encodeURIComponent(d.id)}`,
+      class: location.pathname.startsWith('/dept') && here === d.id ? 'on' : null }, d.name)));
+}
+fillNav();
 
 /* 크게 보기 (화면 가득, 큰 버튼, 손가락으로 밀어서 넘기기) */
 const lightbox = (() => {
