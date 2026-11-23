@@ -37,7 +37,9 @@
   function renderFrame({ album, photos }) {
     const dept = data.depts.find(d => d.id === album.dept_id);
     const hero = $('#hero-img');
-    hero.src = img('web', photos[0].id);
+    // 대표 사진(관리자가 고른 사진, 없으면 첫 사진)을 크게 보여 주고 슬라이드쇼도 그 사진부터
+    const start = Math.max(0, photos.findIndex(p => p.id === album.cover));
+    hero.src = img('web', photos[start].id);
     hero.hidden = false;
 
     let i = 0;
@@ -71,7 +73,7 @@
       h('div', { class: 'frame-meta' }, `${dept ? dept.name + ' · ' : ''}${album.title}`),
       dots,
       h('a', { class: 'btn secondary small', href: `/album.html?id=${encodeURIComponent(album.id)}` }, '이 앨범 모두 보기'));
-    show(0);
+    show(start);
     restart();
   }
 })();

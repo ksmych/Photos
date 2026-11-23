@@ -184,3 +184,6 @@ main.home { max-width: 1400px; }
 .thumbs .moves { display: flex; gap: 4px; margin-top: 4px; }
 .thumbs .moves .mv { flex: 1; min-height: 36px; padding: 0; font: inherit; font-size: 0.7rem; white-space: nowrap; font-weight: 700; border: 2px solid var(--line); border-radius: 8px; background: #fff; color: var(--primary); cursor: pointer; }
 .thumbs .moves .mv:nth-child(2) { flex: 1.4; }
+.thumbs .t.cover img { outline: 4px solid #e0a800; outline-offset: -4px; }
+.thumbs .t.cover .mv.star { background: #e0a800; border-color: #e0a800; color: #fff; }
+.thumbs .t.cover::before { content: '★ 대표 사진'; position: absolute; top: 4px; left: 4px; z-index: 1; padding: 2px 8px; border-radius: 6px; background: #e0a800; color: #fff; font-size: 0.75rem; font-weight: 700; }

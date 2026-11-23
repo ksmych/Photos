@@ -60,7 +60,11 @@ const ALBUM_COLS = `a.id, a.dept_id, a.title, a.event_date, a.status, a.created_
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND ${SHOWN}) AS count,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id) AS total,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND p.qc_status = 'pending') AS qc_pending,
-  (SELECT p.id FROM photos p WHERE p.album_id = a.id AND ${SHOWN} ORDER BY p.sort, p.created_at LIMIT 1) AS cover`;
+  (SELECT value FROM settings WHERE key = 'cover:' || a.id) AS cover_pick,
+  COALESCE(
+    (SELECT p.id FROM photos p JOIN settings s ON s.key = 'cover:' || a.id AND s.value = p.id WHERE p.album_id = a.id AND ${SHOWN}),
+    (SELECT p.id FROM photos p WHERE p.album_id = a.id AND ${SHOWN} ORDER BY p.sort, p.created_at LIMIT 1)) AS cover`;
+// cover: 관리자가 고른 대표 사진(settings 'cover:<앨범id>'), 없거나 빠졌으면 순서상 첫 사진
 
 async function listDepts(env) {
   const { results } = await env.DB.prepare('SELECT id, name, sort, access, pw_hash FROM depts ORDER BY sort').all();
@@ -345,6 +349,21 @@ async function manage(parts, method, request, env, user) {
       return json({ ok: true });
     }
 
+    // 대표 사진 정하기: 순서는 그대로 두고 첫 화면 큰 사진·앨범 표지만 바꿉니다. photo_id 가 없으면 자동(첫 사진)으로
+    if (action === 'cover' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const pid = body.photo_id ? String(body.photo_id) : '';
+      if (!pid) {
+        await env.DB.prepare('DELETE FROM settings WHERE key = ?').bind(`cover:${id}`).run();
+        return json({ ok: true, cover_pick: null });
+      }
+      const ok = await env.DB.prepare('SELECT 1 FROM photos WHERE id = ? AND album_id = ?').bind(pid, id).first();
+      if (!ok) return fail(400, '이 앨범의 사진이 아닙니다');
+      await env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+        .bind(`cover:${id}`, pid).run();
+      return json({ ok: true, cover_pick: pid });
+    }
+
     // 메인에 걸기: 이 앨범을 지금부터 다음 월요일 0시까지 메인 슬라이드쇼에
     if (action === 'feature' && method === 'POST') {
       const dept = await getDept(env, album.dept_id);
@@ -522,6 +541,7 @@ async function deleteAlbum(env, albumId) {
   for (const p of results) await deletePhotoObjects(env, p);
   await env.DB.batch([
     env.DB.prepare('DELETE FROM photos WHERE album_id = ?').bind(albumId),
+    env.DB.prepare('DELETE FROM settings WHERE key = ?').bind(`cover:${albumId}`),
     env.DB.prepare('DELETE FROM featured WHERE album_id = ?').bind(albumId),
     env.DB.prepare('DELETE FROM albums WHERE id = ?').bind(albumId),
   ]);

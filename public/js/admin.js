@@ -65,8 +65,9 @@
       const waiting = photos.filter(p => p.qc_status === 'pending').length;
       summary.textContent = waiting
         ? `자동 선별 중… (${waiting}장 남음). 몇 분 뒤 새로 고쳐 주세요.`
-        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. ◀ ▶ 로 순서를 바꾸고, "맨 앞" 사진이 표지가 됩니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
+        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. ◀ ▶ 로 순서를 바꾸고, "★ 대표" 를 누른 사진이 첫 화면 큰 사진과 앨범 표지가 됩니다(순서는 그대로). 고르지 않으면 첫 사진이 대표입니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
     };
+    let coverPick = a.cover_pick || null;
     const thumbs = h('div', { class: 'thumbs' }, photos.map(p => {
       const label = h('div', { class: 'qc' });
       const pic = h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy' });
@@ -81,6 +82,7 @@
         } }, '✕'));
       const paint = () => {
         t.classList.toggle('off', !!p.hidden);
+        t.classList.toggle('cover', p.id === coverPick);
         const why = (p.qc_flags || []).map(f => FLAG[f] || f).join(', ');
         let left = '';
         if (p.hidden && p.hidden_by === 'qc' && p.qc_done_at) {
@@ -97,16 +99,25 @@
         paint();
         updateSummary();
       });
-      // 순서 바꾸기: ◀ 앞으로, ▶ 뒤로, "맨 앞" 은 표지(첫 사진)로
+      // 순서 바꾸기: ◀ 앞으로, ▶ 뒤로. "★ 대표" 는 순서를 건드리지 않고 대표 사진만 정합니다
       const mv = (label, title, to) => h('button', { class: 'mv', type: 'button', title, onclick: e => { e.stopPropagation(); move(p, to()); } }, label);
       t.append(h('div', { class: 'moves' },
         mv('◀', '앞으로', () => photos.indexOf(p) - 1),
-        mv('맨 앞', '맨 앞(표지)으로', () => 0),
+        h('button', { class: 'mv star', type: 'button', title: '대표 사진으로 (한 번 더 누르면 취소)', onclick: e => { e.stopPropagation(); pickCover(p); } }, '★ 대표'),
         mv('▶', '뒤로', () => photos.indexOf(p) + 1)));
       p.el = t;
       paint();
       return t;
     }));
+    async function pickCover(p) {
+      const next = coverPick === p.id ? null : p.id;
+      try {
+        await api(`/api/manage/albums/${a.id}/cover`, { json: { photo_id: next } });
+        coverPick = next;
+        a.cover_pick = next;
+        photos.forEach(x => x.el.classList.toggle('cover', x.id === coverPick));
+      } catch (err) { alert(err.message); }
+    }
     async function move(p, to) {
       const from = photos.indexOf(p);
       if (to < 0 || to >= photos.length || to === from) return;
