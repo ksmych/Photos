@@ -1,4 +1,4 @@
-// 관리 화면 (목사님 전용): 앨범(메인에 걸기/내리기), 열람 요청, 부서 공개 설정, 올리는 사람, 원본 백업
+// 관리 화면 (목사님 전용): 앨범(메인에 걸기/내리기), 열람 요청, 부서 공개 설정, 올리는 사람·관리자, 원본 백업
 (async function () {
   const content = $('#content');
   let me;
@@ -17,7 +17,7 @@
     ['rejected', '내린 앨범', () => showAlbums('rejected', '내린 앨범이 없습니다.')],
     ['viewers', '열람 요청', showViewers],
     ['depts', '부서 공개 설정', showDepts],
-    ['users', '올리는 사람', showUsers],
+    ['users', '올리는 사람·관리자', showUsers],
     ['backup', '원본 백업', showBackup],
   ];
   const tabBar = h('div', { class: 'tabs', role: 'tablist' });
@@ -199,26 +199,42 @@
 
   async function showUsers() {
     const { users } = await api('/api/manage/users');
+    const ROLE = { uploader: '올리는 사람', admin: '관리자' };
     const name = h('input', { type: 'text', placeholder: '예: 홍길동 (청년부)' });
     const email = h('input', { type: 'email', placeholder: 'example@gmail.com' });
+    const role = h('select', {},
+      h('option', { value: 'uploader' }, '올리는 사람 (사진 올리기만)'),
+      h('option', { value: 'admin' }, '관리자 (관리 화면 모두 사용)'));
     const msg = h('div', { class: 'error' });
     const form = h('form', { class: 'form' },
-      h('p', {}, '사진을 올릴 분의 이메일을 등록하면, 그분은 그 이메일로 받은 확인 번호로 로그인해서 사진을 올릴 수 있습니다.'),
-      h('label', {}, '이름', name), h('label', {}, '이메일', email), msg,
+      h('p', {}, '이메일을 등록하면 그분은 그 이메일로 받은 확인 번호로 로그인합니다. 관리자로 등록하면 이 관리 화면도 쓸 수 있습니다.'),
+      h('label', {}, '이름', name), h('label', {}, '이메일', email), h('label', {}, '권한', role), msg,
       h('button', { class: 'btn', type: 'submit' }, '등록하기'));
+    const save = async (u, r) => {
+      await api('/api/manage/users', { json: { name: u.name, email: u.email, role: r } });
+      showUsers();
+    };
     form.addEventListener('submit', async e => {
       e.preventDefault();
-      try { await api('/api/manage/users', { json: { name: name.value, email: email.value } }); showUsers(); }
+      try { await save({ name: name.value, email: email.value }, role.value); }
       catch (err) { msg.textContent = err.message; }
     });
+    const other = r => (r === 'admin' ? 'uploader' : 'admin');
     body.replaceChildren(
       h('div', { class: 'panel list' }, users.length ? users.map(u => h('div', { class: 'item' },
-        h('div', {}, h('strong', {}, u.name || '(이름 없음)'), h('div', { class: 'meta' }, u.email)),
-        h('button', { class: 'btn danger small', onclick: async () => {
-          if (!confirm(`${u.email} 의 올리기 권한을 없앨까요?`)) return;
-          await api(`/api/manage/users/${encodeURIComponent(u.email)}`, { method: 'DELETE' });
-          showUsers();
-        } }, '권한 없애기'))) : h('p', {}, '등록된 사람이 없습니다.')),
+        h('div', {}, h('strong', {}, u.name || '(이름 없음)'), ' ',
+          h('span', { class: `badge${u.role === 'admin' ? ' approved' : ''}` }, ROLE[u.role] || u.role),
+          h('div', { class: 'meta' }, u.email)),
+        u.email === me.email ? h('span', { class: 'meta' }, '나') : h('div', { class: 'row' },
+          h('button', { class: 'btn secondary small', onclick: async () => {
+            if (!confirm(`${u.email} 을(를) ${ROLE[other(u.role)]}(으)로 바꿀까요?`)) return;
+            try { await save(u, other(u.role)); } catch (err) { alert(err.message); }
+          } }, `${ROLE[other(u.role)]}(으)로 바꾸기`),
+          h('button', { class: 'btn danger small', onclick: async () => {
+            if (!confirm(`${u.email} 의 권한을 모두 없앨까요?`)) return;
+            try { await api(`/api/manage/users/${encodeURIComponent(u.email)}`, { method: 'DELETE' }); showUsers(); }
+            catch (err) { alert(err.message); }
+          } }, '권한 없애기')))) : h('p', {}, '등록된 사람이 없습니다.')),
       form);
   }
 

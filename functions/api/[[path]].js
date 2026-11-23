@@ -381,7 +381,7 @@ async function manage(parts, method, request, env, user) {
 
   if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
 
-  // 사진 올리는 사람 관리
+  // 사진 올리는 사람·관리자 관리 (ADMIN_EMAILS 에 적힌 최종 관리자는 여기서 바뀌지 않음)
   if (res === 'users' && !id && method === 'GET') {
     const { results } = await env.DB.prepare('SELECT email, name, role, created_at FROM users ORDER BY created_at').all();
     return json({ users: results });
@@ -398,6 +398,7 @@ async function manage(parts, method, request, env, user) {
     return json({ ok: true }, 201);
   }
   if (res === 'users' && id && method === 'DELETE') {
+    if (id.toLowerCase() === user.email) return fail(400, '자기 자신의 권한은 없앨 수 없습니다');
     await env.DB.prepare('DELETE FROM users WHERE email = ?').bind(id.toLowerCase()).run();
     return json({ ok: true });
   }
