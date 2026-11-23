@@ -26,20 +26,25 @@ export async function onRequest(context) {
 
 /* ───────────── 공통 조회 ───────────── */
 
+// 사이트에 보이는 사진: 선별이 끝났고 빠지지 않은 사진
+const SHOWN = "p.hidden = 0 AND p.qc_status = 'done'";
+// 사이트에 보이는 앨범: 내리지 않은 앨범 (pending = 부서 사진첩, approved = 메인에도 걸림)
+const VISIBLE = "a.status IN ('pending', 'approved')";
+
 // count/cover 는 사이트에 보이는 사진 기준, total 은 숨긴 사진 포함
 const ALBUM_COLS = `a.id, a.dept_id, a.title, a.event_date, a.status, a.created_by, a.created_at, a.reviewed_at,
-  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND p.hidden = 0) AS count,
+  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND ${SHOWN}) AS count,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id) AS total,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND p.qc_status = 'pending') AS qc_pending,
-  (SELECT p.id FROM photos p WHERE p.album_id = a.id AND p.hidden = 0 ORDER BY p.sort, p.created_at LIMIT 1) AS cover`;
+  (SELECT p.id FROM photos p WHERE p.album_id = a.id AND ${SHOWN} ORDER BY p.sort, p.created_at LIMIT 1) AS cover`;
 
 async function listDepts(env) {
-  const { results } = await env.DB.prepare('SELECT id, name, sort, pw_hash FROM depts ORDER BY sort').all();
+  const { results } = await env.DB.prepare('SELECT id, name, sort, access, pw_hash FROM depts ORDER BY sort').all();
   return results;
 }
 
 async function getDept(env, id) {
-  return env.DB.prepare('SELECT id, name, pw_hash FROM depts WHERE id = ?').bind(id).first();
+  return env.DB.prepare('SELECT id, name, access, pw_hash FROM depts WHERE id = ?').bind(id).first();
 }
 
 async function getAlbum(env, id) {
@@ -49,12 +54,12 @@ async function getAlbum(env, id) {
 async function albumPhotos(env, albumId, { all = false } = {}) {
   const { results } = await env.DB.prepare(
     `SELECT id, width, height, orig_name, orig_size, qc_status, qc_flags, qc_score, qc_done_at, hidden, hidden_by
-     FROM photos WHERE album_id = ? ${all ? '' : 'AND hidden = 0'} ORDER BY sort, created_at`
+     FROM photos p WHERE album_id = ? ${all ? '' : 'AND ' + SHOWN} ORDER BY sort, created_at`
   ).bind(albumId).all();
   return results.map(p => ({ ...p, qc_flags: p.qc_flags ? JSON.parse(p.qc_flags) : [] }));
 }
 
-const publicDept = d => ({ id: d.id, name: d.name, locked: !!d.pw_hash });
+const publicDept = d => ({ id: d.id, name: d.name, access: d.access, locked: d.access !== 'public' });
 
 /* ───────────── 공개 API ───────────── */
 
@@ -65,21 +70,25 @@ async function publicApi(parts, method, request, env, user) {
     return json({ user });
   }
 
-  // 첫 화면: 부서 목록 + 최근 승인 앨범(슬라이드쇼) + 최근 앨범들
+  // 첫 화면: 부서 목록 + 메인에 건 최근 앨범(슬라이드쇼) + 새로 올라온 앨범들 (공개 부서만)
   if (res === 'home' && method === 'GET') {
     const depts = await listDepts(env);
-    const open = depts.filter(d => !d.pw_hash).map(d => d.id);
+    const open = depts.filter(d => d.access === 'public').map(d => d.id);
     let featured = null;
     let recent = [];
     if (open.length) {
       const marks = open.map(() => '?').join(',');
-      const { results } = await env.DB.prepare(
+      const { results: feat } = await env.DB.prepare(
         `SELECT ${ALBUM_COLS} FROM albums a WHERE a.status = 'approved' AND a.dept_id IN (${marks})
-         ORDER BY a.reviewed_at DESC LIMIT 7`
+         ORDER BY a.reviewed_at DESC LIMIT 5`
       ).bind(...open).all();
-      const withPhotos = results.filter(a => a.count > 0);
-      if (withPhotos[0]) featured = { album: withPhotos[0], photos: await albumPhotos(env, withPhotos[0].id) };
-      recent = withPhotos.slice(0, 6);
+      const top = feat.find(a => a.count > 0);
+      if (top) featured = { album: top, photos: await albumPhotos(env, top.id) };
+      const { results: rec } = await env.DB.prepare(
+        `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks})
+         ORDER BY a.created_at DESC LIMIT 12`
+      ).bind(...open).all();
+      recent = rec.filter(a => a.count > 0).slice(0, 6);
     }
     return json({ depts: depts.map(publicDept), featured, recent });
   }
@@ -88,18 +97,41 @@ async function publicApi(parts, method, request, env, user) {
     const dept = await getDept(env, id);
     if (!dept) return fail(404, '없는 부서입니다');
     const unlocked = await canViewDept(request, env, dept, user);
-    if (!unlocked) return json({ dept: publicDept(dept), unlocked: false, albums: [] });
+    if (!unlocked) {
+      let request_status = null;
+      if (dept.access === 'members' && user) {
+        const row = await env.DB.prepare('SELECT status FROM dept_viewers WHERE dept_id = ? AND email = ?')
+          .bind(id, user.email).first();
+        request_status = row ? row.status : 'none';
+      }
+      return json({ dept: publicDept(dept), unlocked: false, albums: [], logged_in: !!user, request_status });
+    }
     const { results } = await env.DB.prepare(
-      `SELECT ${ALBUM_COLS} FROM albums a WHERE a.dept_id = ? AND a.status = 'approved'
-       ORDER BY COALESCE(a.event_date, substr(a.reviewed_at, 1, 10)) DESC, a.reviewed_at DESC`
+      `SELECT ${ALBUM_COLS} FROM albums a WHERE a.dept_id = ? AND ${VISIBLE}
+       ORDER BY COALESCE(a.event_date, substr(a.created_at, 1, 10)) DESC, a.created_at DESC`
     ).bind(id).all();
     return json({ dept: publicDept(dept), unlocked: true, albums: results.filter(a => a.count > 0) });
+  }
+
+  // 허락받은 사람만 보는 부서: 로그인한 사람이 열람 요청
+  if (res === 'depts' && id && action === 'request' && method === 'POST') {
+    if (!user) return fail(401, '먼저 로그인해 주세요');
+    const dept = await getDept(env, id);
+    if (!dept || dept.access !== 'members') return fail(400, '요청할 수 없는 부서입니다');
+    const body = await request.json().catch(() => ({}));
+    const name = String(body.name || '').trim().slice(0, 40);
+    if (!name) return fail(400, '이름을 적어 주세요 (예: 홍길동, 김철수 학생 엄마)');
+    await env.DB.prepare(
+      `INSERT INTO dept_viewers (dept_id, email, name) VALUES (?, ?, ?)
+       ON CONFLICT(dept_id, email) DO UPDATE SET name = excluded.name`
+    ).bind(id, user.email, name).run();
+    return json({ ok: true });
   }
 
   if (res === 'depts' && id && action === 'unlock' && method === 'POST') {
     const dept = await getDept(env, id);
     if (!dept) return fail(404, '없는 부서입니다');
-    if (!dept.pw_hash) return json({ ok: true });
+    if (dept.access !== 'password' || !dept.pw_hash) return fail(400, '비밀번호 부서가 아닙니다');
     const body = await request.json().catch(() => ({}));
     const pw = String(body.password || '');
     const full = await env.DB.prepare('SELECT pw_salt FROM depts WHERE id = ?').bind(id).first();
@@ -115,7 +147,7 @@ async function publicApi(parts, method, request, env, user) {
     if (!album) return fail(404, '없는 앨범입니다');
     const dept = await getDept(env, album.dept_id);
     const staff = isStaff(user);
-    if (album.status !== 'approved' && !staff) return fail(404, '없는 앨범입니다');
+    if (album.status === 'rejected' && !staff) return fail(404, '없는 앨범입니다');
     if (!(await canViewDept(request, env, dept, user))) {
       return json({ locked: true, dept: publicDept(dept) }, 403);
     }
@@ -226,8 +258,9 @@ async function manage(parts, method, request, env, user) {
     }
 
     // 아래는 관리자 전용
-    if ((action === 'approve' || action === 'reject') && method === 'POST') {
-      const status = action === 'approve' ? 'approved' : 'rejected';
+    // approve: 메인에 걸기 / unfeature: 메인에서 내리기(부서에는 그대로) / reject: 사이트에서 내리기
+    if (['approve', 'unfeature', 'reject'].includes(action) && method === 'POST') {
+      const status = { approve: 'approved', unfeature: 'pending', reject: 'rejected' }[action];
       await env.DB.prepare(
         "UPDATE albums SET status = ?, reviewed_by = ?, reviewed_at = strftime('%Y-%m-%d %H:%M:%f','now') WHERE id = ?"
       ).bind(status, user.email, id).run();
@@ -297,18 +330,52 @@ async function manage(parts, method, request, env, user) {
     return json({ ok: true });
   }
 
-  // 부서 비밀번호 설정/해제
-  if (res === 'depts' && id && action === 'password' && method === 'POST') {
+  // 부서 공개 방식: public / password(비밀번호 함께) / members
+  if (res === 'depts' && id && action === 'access' && method === 'POST') {
     if (!(await getDept(env, id))) return fail(404, '없는 부서입니다');
     const body = await request.json().catch(() => ({}));
-    const pw = body.password ? String(body.password) : '';
-    if (!pw) {
-      await env.DB.prepare('UPDATE depts SET pw_hash = NULL, pw_salt = NULL WHERE id = ?').bind(id).run();
-    } else {
+    const access = String(body.access || '');
+    if (access === 'password') {
+      const pw = String(body.password || '');
       if (pw.length < 4) return fail(400, '비밀번호는 4자 이상으로 정해 주세요');
       const { hash, salt } = await hashPassword(pw);
-      await env.DB.prepare('UPDATE depts SET pw_hash = ?, pw_salt = ? WHERE id = ?').bind(hash, salt, id).run();
+      await env.DB.prepare("UPDATE depts SET access = 'password', pw_hash = ?, pw_salt = ? WHERE id = ?")
+        .bind(hash, salt, id).run();
+    } else if (access === 'public' || access === 'members') {
+      await env.DB.prepare('UPDATE depts SET access = ?, pw_hash = NULL, pw_salt = NULL WHERE id = ?')
+        .bind(access, id).run();
+    } else {
+      return fail(400, '공개 방식을 골라 주세요');
     }
+    return json({ ok: true });
+  }
+
+  // 열람 요청과 허락한 사람
+  if (res === 'viewers' && !id && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT v.dept_id, d.name AS dept_name, v.email, v.name, v.status, v.created_at
+       FROM dept_viewers v JOIN depts d ON d.id = v.dept_id ORDER BY v.status DESC, v.created_at DESC`
+    ).all();
+    return json({ viewers: results });
+  }
+  if (res === 'viewers' && !id && method === 'POST') {
+    // 허락하기 (요청 승인 또는 직접 추가)
+    const body = await request.json().catch(() => ({}));
+    const email = String(body.email || '').trim().toLowerCase();
+    const deptId = String(body.dept_id || '');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail(400, '이메일 주소가 맞지 않습니다');
+    if (!(await getDept(env, deptId))) return fail(400, '부서를 골라 주세요');
+    await env.DB.prepare(
+      `INSERT INTO dept_viewers (dept_id, email, name, status) VALUES (?, ?, ?, 'approved')
+       ON CONFLICT(dept_id, email) DO UPDATE SET status = 'approved', name = COALESCE(NULLIF(excluded.name, ''), dept_viewers.name)`
+    ).bind(deptId, email, String(body.name || '').trim().slice(0, 40)).run();
+    return json({ ok: true });
+  }
+  if (res === 'viewers' && id === 'remove' && method === 'POST') {
+    // 거절하기 / 허락 취소
+    const body = await request.json().catch(() => ({}));
+    await env.DB.prepare('DELETE FROM dept_viewers WHERE dept_id = ? AND email = ?')
+      .bind(String(body.dept_id || ''), String(body.email || '').toLowerCase()).run();
     return json({ ok: true });
   }
 
@@ -319,7 +386,7 @@ async function manage(parts, method, request, env, user) {
     const { results } = await env.DB.prepare(
       `SELECT p.id, p.orig_name, p.orig_size, a.id AS album_id, a.title, a.event_date, d.name AS dept_name
        FROM photos p JOIN albums a ON a.id = p.album_id JOIN depts d ON d.id = a.dept_id
-       WHERE a.status = 'approved' AND substr(COALESCE(a.event_date, a.created_at), 1, 4) = ?
+       WHERE a.status != 'rejected' AND p.hidden = 0 AND substr(COALESCE(a.event_date, a.created_at), 1, 4) = ?
        ORDER BY d.sort, a.event_date, a.title, p.sort, p.created_at`
     ).bind(year).all();
     return json({ photos: results });

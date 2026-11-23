@@ -1,4 +1,4 @@
-// 관리 화면 (목사님 전용): 승인, 올리는 사람, 부서 비밀번호, 원본 백업
+// 관리 화면 (목사님 전용): 앨범(메인에 걸기/내리기), 열람 요청, 부서 공개 설정, 올리는 사람, 원본 백업
 (async function () {
   const content = $('#content');
   let me;
@@ -10,11 +10,14 @@
   const { depts } = await api('/api/manage/depts');
   const deptName = id => (depts.find(d => d.id === id) || {}).name || id;
 
+  const STATUS = { pending: '부서 사진첩', approved: '메인 화면', rejected: '내림' };
   const tabs = [
-    ['pending', '승인 대기', showPending],
-    ['approved', '올라간 앨범', showApproved],
+    ['pending', '새 앨범', () => showAlbums('pending', '새로 올라온 앨범이 없습니다. 올라온 앨범은 부서 사진첩에 바로 보이고, "메인에 걸기"를 누르면 첫 화면 슬라이드쇼에도 나옵니다.')],
+    ['approved', '메인 화면 앨범', () => showAlbums('approved', '메인 화면에 건 앨범이 없습니다.')],
+    ['rejected', '내린 앨범', () => showAlbums('rejected', '내린 앨범이 없습니다.')],
+    ['viewers', '열람 요청', showViewers],
+    ['depts', '부서 공개 설정', showDepts],
     ['users', '올리는 사람', showUsers],
-    ['depts', '부서 비밀번호', showDepts],
     ['backup', '원본 백업', showBackup],
   ];
   const tabBar = h('div', { class: 'tabs', role: 'tablist' });
@@ -28,7 +31,7 @@
   }
   select('pending');
 
-  async function albumPanel(a, { review }) {
+  async function albumPanel(a) {
     const { photos } = await api(`/api/manage/albums/${a.id}`);
     const FLAG = { blurry: '흔들림', dark: '어두움', bright: '너무 밝음', duplicate: '비슷한 사진', eyes_closed: '눈 감음', error: '검사 실패' };
     const shown = () => photos.filter(p => !p.hidden).length;
@@ -79,42 +82,74 @@
       panel.remove();
     };
     const panel = h('div', { class: 'panel' },
-      h('h3', {}, a.title, ' ', h('span', { class: `badge ${a.status}` }, { pending: '승인 대기', approved: '올라감', rejected: '반려' }[a.status])),
+      h('h3', {}, a.title, ' ', h('span', { class: `badge ${a.status}` }, STATUS[a.status])),
       h('div', { class: 'meta' }, [deptName(a.dept_id), a.event_date && fmtDate(a.event_date), `사진 ${photos.length}장`, `올린 사람 ${a.created_by}`].filter(Boolean).join(' · ')),
       summary,
       thumbs,
       h('div', { class: 'row' },
         h('button', { class: 'btn secondary small', onclick: () => lightbox.open(photos.filter(p => !p.hidden), 0) }, '크게 보기'),
-        review ? h('button', { class: 'btn ok', onclick: () => act('/approve', { method: 'POST' }) }, '✔ 승인 (보일 사진만 공개)') : null,
-        review ? h('button', { class: 'btn danger', onclick: () => act('/reject', { method: 'POST' }, '이 앨범을 반려할까요? 사이트에 보이지 않습니다.') }, '반려')
-               : h('a', { class: 'btn secondary small', href: `/album.html?id=${a.id}`, target: '_blank' }, '사이트에서 보기'),
+        a.status === 'pending' ? h('button', { class: 'btn ok', onclick: () => act('/approve', { method: 'POST' }) }, '★ 메인에 걸기') : null,
+        a.status === 'approved' ? h('button', { class: 'btn secondary', onclick: () => act('/unfeature', { method: 'POST' }) }, '메인에서 내리기') : null,
+        a.status === 'rejected' ? h('button', { class: 'btn ok', onclick: () => act('/unfeature', { method: 'POST' }) }, '다시 올리기') : null,
+        a.status !== 'rejected' ? h('a', { class: 'btn secondary small', href: `/album.html?id=${a.id}`, target: '_blank' }, '사이트에서 보기') : null,
         h('button', { class: 'btn secondary small', onclick: async () => {
           const title = prompt('앨범 이름', a.title);
           if (title == null) return;
           const date = prompt('행사 날짜 (예: 2026-11-15, 비워도 됨)', a.event_date || '');
           if (date == null) return;
           await api(`/api/manage/albums/${a.id}`, { method: 'PATCH', json: { title, event_date: date } });
-          select(review ? 'pending' : 'approved');
+          select(a.status);
         } }, '이름·날짜 고치기'),
         h('button', { class: 'btn secondary small', onclick: e => downloadZip(e.target, `${deptName(a.dept_id)}_${a.title}`,
           photos.map(p => ({ url: img('orig', p.id), path: p.orig_name || `${p.id}.jpg` }))) }, '원본 모두 받기'),
-        !review ? h('button', { class: 'btn secondary small', onclick: () => act('/reject', { method: 'POST' }, '사이트에서 내릴까요? 사진은 지워지지 않습니다.') }, '사이트에서 내리기') : null,
+        a.status !== 'rejected' ? h('button', { class: 'btn danger small', onclick: () => act('/reject', { method: 'POST' }, '사이트에서 내릴까요? 사진은 지워지지 않고 "내린 앨범"에 남습니다.') }, '사이트에서 내리기') : null,
         h('button', { class: 'btn danger small', onclick: () => act('', { method: 'DELETE' }, '앨범과 원본 사진을 모두 지울까요? 되돌릴 수 없습니다.') }, '완전히 지우기')));
     return panel;
   }
 
-  async function showPending() {
-    const { albums } = await api('/api/manage/albums?status=pending');
-    if (!albums.length) return body.replaceChildren(h('div', { class: 'notice' }, '승인을 기다리는 앨범이 없습니다.'));
-    body.replaceChildren(...await Promise.all(albums.map(a => albumPanel(a, { review: true }))));
+  async function showAlbums(status, empty) {
+    const { albums } = await api(`/api/manage/albums?status=${status}`);
+    if (!albums.length) return body.replaceChildren(h('div', { class: 'notice' }, empty));
+    body.replaceChildren(...await Promise.all(albums.map(a => albumPanel(a))));
   }
 
-  async function showApproved() {
-    const { albums } = await api('/api/manage/albums?status=approved');
-    const { albums: rejected } = await api('/api/manage/albums?status=rejected');
-    const all = [...albums, ...rejected];
-    if (!all.length) return body.replaceChildren(h('div', { class: 'notice' }, '아직 올라간 앨범이 없습니다.'));
-    body.replaceChildren(...await Promise.all(all.map(a => albumPanel(a, { review: a.status !== 'approved' }))));
+  async function showViewers() {
+    const { viewers } = await api('/api/manage/viewers');
+    const members = depts.filter(d => d.access === 'members');
+    const call = async (path, payload) => { await api(`/api/manage/viewers${path}`, { json: payload }); showViewers(); };
+    const row = (v, buttons) => h('div', { class: 'item' },
+      h('div', {}, h('strong', {}, v.name || '(이름 없음)'), ` · ${v.dept_name}`, h('div', { class: 'meta' }, v.email)),
+      h('div', { class: 'row' }, buttons));
+    const requested = viewers.filter(v => v.status === 'requested');
+    const approved = viewers.filter(v => v.status === 'approved');
+    const email = h('input', { type: 'email', placeholder: 'example@gmail.com' });
+    const name = h('input', { type: 'text', placeholder: '예: 김철수 학생 엄마' });
+    const dept = h('select', {}, members.map(d => h('option', { value: d.id }, d.name)));
+    const msg = h('div', { class: 'error' });
+    const form = h('form', { class: 'form' },
+      h('p', {}, '요청 없이 직접 허락할 수도 있습니다.'),
+      h('label', {}, '부서', dept), h('label', {}, '이름', name), h('label', {}, '이메일', email), msg,
+      h('button', { class: 'btn', type: 'submit' }, '허락하기'));
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      try { await call('', { dept_id: dept.value, email: email.value, name: name.value }); }
+      catch (err) { msg.textContent = err.message; }
+    });
+    body.replaceChildren(
+      h('p', { class: 'meta', style: 'margin-bottom:0.6rem' },
+        `허락받은 사람만 보는 부서: ${members.map(d => d.name).join(', ') || '없음'} ("부서 공개 설정"에서 바꿀 수 있습니다)`),
+      h('div', { class: 'panel list' }, h('h3', {}, `새 열람 요청 ${requested.length}건`),
+        requested.length ? requested.map(v => row(v, [
+          h('button', { class: 'btn ok small', onclick: () => call('', { dept_id: v.dept_id, email: v.email }) }, '허락'),
+          h('button', { class: 'btn danger small', onclick: () => call('/remove', { dept_id: v.dept_id, email: v.email }) }, '거절'),
+        ])) : h('p', {}, '새 요청이 없습니다.')),
+      h('div', { class: 'panel list' }, h('h3', {}, `허락한 사람 ${approved.length}명`),
+        approved.map(v => row(v, [
+          h('button', { class: 'btn secondary small', onclick: () => {
+            if (confirm(`${v.name || v.email} 님의 ${v.dept_name} 열람 허락을 취소할까요?`)) call('/remove', { dept_id: v.dept_id, email: v.email });
+          } }, '허락 취소'),
+        ]))),
+      members.length ? form : '');
   }
 
   async function showUsers() {
@@ -144,22 +179,25 @@
 
   async function showDepts() {
     const { depts: list } = await api('/api/manage/depts');
+    depts.splice(0, depts.length, ...list);
+    const LABEL = { public: '전체 공개', password: '🔒 비밀번호', members: '🔒 허락받은 사람만' };
+    const setAccess = async (d, access) => {
+      let password;
+      if (access === 'password') {
+        password = prompt(`${d.name} 비밀번호를 정해 주세요 (4자 이상)`);
+        if (!password) return;
+      }
+      try { await api(`/api/manage/depts/${d.id}/access`, { json: { access, password } }); showDepts(); }
+      catch (err) { alert(err.message); }
+    };
     body.replaceChildren(h('div', { class: 'panel list' },
-      h('p', {}, '비밀번호를 정한 부서는 비밀번호를 아는 분만 사진을 볼 수 있습니다. 비밀번호 부서의 사진은 첫 화면 슬라이드쇼에 나오지 않습니다.'),
+      h('p', {}, '전체 공개가 아닌 부서의 사진은 첫 화면에 나오지 않습니다. "허락받은 사람만"은 이메일로 로그인해 열람 요청을 보낸 분 중 목사님이 허락한 분만 볼 수 있습니다.'),
       list.map(d => h('div', { class: 'item' },
-        h('div', {}, h('strong', {}, d.name), ' ', d.locked ? '🔒 비밀번호 있음' : '전체 공개'),
+        h('div', {}, h('strong', {}, d.name), ' ', LABEL[d.access]),
         h('div', { class: 'row' },
-          h('button', { class: 'btn secondary small', onclick: async () => {
-            const pw = prompt(`${d.name} 비밀번호를 정해 주세요 (4자 이상)`);
-            if (!pw) return;
-            try { await api(`/api/manage/depts/${d.id}/password`, { json: { password: pw } }); showDepts(); }
-            catch (err) { alert(err.message); }
-          } }, d.locked ? '비밀번호 바꾸기' : '비밀번호 정하기'),
-          d.locked ? h('button', { class: 'btn secondary small', onclick: async () => {
-            if (!confirm(`${d.name} 을(를) 전체 공개로 바꿀까요?`)) return;
-            await api(`/api/manage/depts/${d.id}/password`, { json: { password: '' } });
-            showDepts();
-          } }, '전체 공개로') : null)))));
+          d.access !== 'public' ? h('button', { class: 'btn secondary small', onclick: () => setAccess(d, 'public') }, '전체 공개로') : null,
+          h('button', { class: 'btn secondary small', onclick: () => setAccess(d, 'password') }, d.access === 'password' ? '비밀번호 바꾸기' : '비밀번호로'),
+          d.access !== 'members' ? h('button', { class: 'btn secondary small', onclick: () => setAccess(d, 'members') }, '허락받은 사람만') : null)))));
   }
 
   async function showBackup() {

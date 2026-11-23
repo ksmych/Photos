@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>로그인 | 경산목양교회</title>
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<main><div class="notice">로그인되었습니다. 잠시만 기다려 주세요…</div></main>
+<script>
+  // 이 주소는 Cloudflare Access 로 보호됩니다. 로그인을 마치면 원래 보던 화면으로 돌아갑니다.
+  const next = new URLSearchParams(location.search).get('next') || '/';
+  location.replace(next.startsWith('/') && !next.startsWith('//') ? next : '/');
+</script>
+</body>
+</html>

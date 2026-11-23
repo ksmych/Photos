@@ -67,7 +67,7 @@ const THUMB_MAX = 480;  // 목록용 긴 변
   async function myAlbums() {
     const { albums } = await api('/api/manage/albums');
     if (!albums.length) return h('div', { class: 'notice' }, '아직 올린 앨범이 없습니다.');
-    const label = { pending: '승인 기다리는 중', approved: '사이트에 보이는 중', rejected: '반려됨' };
+    const label = { pending: '부서 사진첩에 올라감', approved: '메인 화면에도 걸림', rejected: '사이트에서 내려짐' };
     return h('div', { class: 'panel list' }, albums.map(a =>
       h('div', { class: 'item' },
         h('div', {},
@@ -118,7 +118,7 @@ const THUMB_MAX = 480;  // 목록용 긴 변
       bar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
     }
     if (done) api(`/api/manage/albums/${encodeURIComponent(album.id)}/done`, { method: 'POST' }).catch(() => {});
-    status.textContent = `${done}장을 올렸습니다.` + (done ? ' 흔들린 사진 등은 자동으로 걸러지고, 목사님이 승인하시면 사이트에 보입니다.' : '');
+    status.textContent = `${done}장을 올렸습니다.` + (done ? ' 몇 분 안에 흔들린 사진 등이 자동으로 걸러지고, 좋은 사진이 부서 사진첩에 올라갑니다.' : '');
     if (failed.length) errors.replaceChildren(h('p', {}, `올리지 못한 사진 ${failed.length}장:`), ...failed.map(f => h('div', {}, f)));
     content.querySelector('.form').append(
       h('div', { class: 'row' },

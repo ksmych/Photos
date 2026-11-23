@@ -72,7 +72,8 @@ export async function getUser(request, env) {
   let email = null;
   const host = new URL(request.url).hostname;
   if (env.DEV_USER_EMAIL && LOCAL_HOSTS.has(host)) {
-    email = request.headers.get('x-dev-user') || env.DEV_USER_EMAIL;
+    const dev = request.headers.get('x-dev-user');
+    email = dev === 'none' ? null : (dev || env.DEV_USER_EMAIL);
   } else if (env.ACCESS_TEAM_DOMAIN && env.ACCESS_AUD) {
     const token = request.headers.get('cf-access-jwt-assertion') || getCookie(request, 'CF_Authorization');
     if (token) {
@@ -117,11 +118,20 @@ export async function deptToken(env, dept) {
 
 export const deptCookieName = id => `dept_${id.replace(/[^a-z0-9-]/gi, '')}`;
 
+// dept 에는 id, access, pw_hash 가 있어야 합니다.
 export async function canViewDept(request, env, dept, user) {
-  if (!dept.pw_hash) return true;
+  if (dept.access === 'public') return true;
   if (isStaff(user)) return true;
-  const c = getCookie(request, deptCookieName(dept.id));
-  return !!c && c === await deptToken(env, dept);
+  if (dept.access === 'password') {
+    if (!dept.pw_hash) return false;
+    const c = getCookie(request, deptCookieName(dept.id));
+    return !!c && c === await deptToken(env, dept);
+  }
+  if (!user) return false;
+  const row = await env.DB.prepare(
+    "SELECT 1 FROM dept_viewers WHERE dept_id = ? AND email = ? AND status = 'approved'"
+  ).bind(dept.id, user.email).first();
+  return !!row;
 }
 
 export function timingSafeEqualHex(a, b) {

@@ -4,8 +4,20 @@ CREATE TABLE IF NOT EXISTS depts (
   id       TEXT PRIMARY KEY,
   name     TEXT NOT NULL,
   sort     INTEGER NOT NULL DEFAULT 0,
-  pw_hash  TEXT,          -- 비밀번호 보호 부서만 값이 있음
+  access   TEXT NOT NULL DEFAULT 'public' CHECK (access IN ('public', 'password', 'members')),
+           -- public: 누구나 / password: 비밀번호 아는 사람 / members: 관리자가 허락한 사람만
+  pw_hash  TEXT,
   pw_salt  TEXT
+);
+
+-- 'members' 부서를 볼 수 있는 사람 (열람 요청 → 관리자 허락)
+CREATE TABLE IF NOT EXISTS dept_viewers (
+  dept_id    TEXT NOT NULL REFERENCES depts(id),
+  email      TEXT NOT NULL,
+  name       TEXT,
+  status     TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested', 'approved')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (dept_id, email)
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -20,6 +32,7 @@ CREATE TABLE IF NOT EXISTS albums (
   dept_id     TEXT NOT NULL REFERENCES depts(id),
   title       TEXT NOT NULL,
   event_date  TEXT,                               -- YYYY-MM-DD
+  -- pending: 부서 사진첩에 보임 / approved: 메인 슬라이드쇼에도 걸림 / rejected: 사이트에서 내림
   status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_by  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -51,12 +64,12 @@ CREATE TABLE IF NOT EXISTS photos (
 CREATE INDEX IF NOT EXISTS photos_album ON photos (album_id, sort);
 CREATE INDEX IF NOT EXISTS photos_qc ON photos (qc_status);
 
-INSERT OR IGNORE INTO depts (id, name, sort) VALUES
-  ('church-events', '교회행사', 1),
-  ('newcomers',     '새가족',   2),
-  ('mens',          '남전도회', 3),
-  ('womens1',       '1여전도회', 4),
-  ('womens2',       '2여전도회', 5),
-  ('youth',         '청년부',   6),
-  ('teens',         '중고등부', 7),
-  ('kids',          '유초등부', 8);
+INSERT OR IGNORE INTO depts (id, name, sort, access) VALUES
+  ('church-events', '교회행사', 1, 'public'),
+  ('newcomers',     '새가족',   2, 'public'),
+  ('mens',          '남전도회', 3, 'public'),
+  ('womens1',       '1여전도회', 4, 'public'),
+  ('womens2',       '2여전도회', 5, 'public'),
+  ('youth',         '청년부',   6, 'public'),
+  ('teens',         '중고등부', 7, 'members'),
+  ('kids',          '유초등부', 8, 'members');

@@ -12,7 +12,7 @@
     h('a', { class: 'dept-btn', href: `/dept.html?id=${encodeURIComponent(d.id)}` }, d.name, d.locked ? ' 🔒' : '')));
 
   if (data.featured) renderSlideshow(data.featured);
-  else $('#featured').append(h('div', { class: 'notice' }, '아직 올라온 사진이 없습니다.'));
+  else if (!data.recent.length) $('#featured').append(h('div', { class: 'notice' }, '아직 올라온 사진이 없습니다.'));
 
   const others = data.recent.filter(a => !data.featured || a.id !== data.featured.album.id);
   if (others.length) {
