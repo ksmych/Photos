@@ -1,0 +1,24 @@
+# Cloudflare Pages 설정
+name = "gsmy-photos"
+pages_build_output_dir = "public"
+compatibility_date = "2024-11-01"
+
+[vars]
+GH_REPO = "ksmych/Photos"
+
+# 아래 값들은 이 파일이 아니라 Cloudflare Pages 설정 화면의 "비밀(Secret)"로 넣습니다 (저장소에 남지 않게).
+#   ADMIN_EMAILS        관리자 이메일 (여러 명이면 쉼표로 구분)
+#   SESSION_SECRET      긴 임의 문자열 (부서 비밀번호 쿠키 서명)
+#   ACCESS_TEAM_DOMAIN  Cloudflare Access 팀 주소 (예: xxx.cloudflareaccess.com)
+#   ACCESS_AUD          Access 앱의 AUD 값
+#   QC_TOKEN            자동 선별용 열쇠 (GitHub Secrets 의 QC_TOKEN 과 같은 값)
+#   GH_DISPATCH_TOKEN   GitHub 토큰 (이 저장소 Actions 쓰기 권한만)
+
+[[d1_databases]]
+binding = "DB"
+database_name = "gsmy-photos"
+database_id = "fe70cc51-82b0-4a5a-a3ff-1d6ff48cada5"
+
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "gsmy-photos"

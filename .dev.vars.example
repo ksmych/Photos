@@ -1,0 +1,5 @@
+# 로컬 시험용. .dev.vars 로 복사해서 사용. localhost 에서만 적용됩니다.
+DEV_USER_EMAIL=admin@example.com
+ADMIN_EMAILS=admin@example.com
+SESSION_SECRET=local-dev-secret-change-me
+QC_TOKEN=local-qc-token
