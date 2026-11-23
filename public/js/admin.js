@@ -37,7 +37,7 @@
       const waiting = photos.filter(p => p.qc_status === 'pending').length;
       summary.textContent = waiting
         ? `자동 선별 중… (${waiting}장 남음). 몇 분 뒤 새로 고쳐 주세요.`
-        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다.`;
+        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
     };
     const thumbs = h('div', { class: 'thumbs' }, photos.map(p => {
       const label = h('div', { class: 'qc' });
@@ -54,7 +54,12 @@
       const paint = () => {
         t.classList.toggle('off', !!p.hidden);
         const why = (p.qc_flags || []).map(f => FLAG[f] || f).join(', ');
-        label.textContent = p.hidden ? `빠짐${why ? ' · ' + why : ''}` : (p.qc_status === 'pending' ? '검사 중' : '');
+        let left = '';
+        if (p.hidden && p.hidden_by === 'qc' && p.qc_done_at) {
+          const days = 7 - Math.floor((Date.now() - Date.parse(p.qc_done_at.replace(' ', 'T') + 'Z')) / 86400000);
+          left = ` · ${Math.max(days, 0)}일 뒤 삭제`;
+        }
+        label.textContent = p.hidden ? `빠짐${why ? ' · ' + why : ''}${left}` : (p.qc_status === 'pending' ? '검사 중' : '');
       };
       // 누르면 보이기/빼기 전환
       pic.addEventListener('click', async () => {

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS photos (
   qc_status  TEXT NOT NULL DEFAULT 'pending',     -- pending / done
   qc_flags   TEXT,                                -- 예: ["blurry","duplicate"]
   qc_score   REAL,                                -- 선명도
+  qc_done_at TEXT,                                -- 선별 끝난 때. 걸러진 사진은 7일 뒤 자동 삭제
   hidden     INTEGER NOT NULL DEFAULT 0,          -- 1 이면 사이트에 안 보임
   hidden_by  TEXT                                 -- 'qc'(자동) 또는 'admin'(직접)
 );

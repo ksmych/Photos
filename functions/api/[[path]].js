@@ -7,6 +7,7 @@ import {
 const MAX_ORIGINAL = 60 * 1024 * 1024;   // 원본 한 장 최대 60MB
 const MAX_WEB = 8 * 1024 * 1024;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const REJECT_KEEP_DAYS = 7;   // 자동으로 걸러진 사진을 되살릴 수 있는 기간
 
 export async function onRequest(context) {
   const { request, env, params } = context;
@@ -47,7 +48,7 @@ async function getAlbum(env, id) {
 
 async function albumPhotos(env, albumId, { all = false } = {}) {
   const { results } = await env.DB.prepare(
-    `SELECT id, width, height, orig_name, orig_size, qc_status, qc_flags, qc_score, hidden, hidden_by
+    `SELECT id, width, height, orig_name, orig_size, qc_status, qc_flags, qc_score, qc_done_at, hidden, hidden_by
      FROM photos WHERE album_id = ? ${all ? '' : 'AND hidden = 0'} ORDER BY sort, created_at`
   ).bind(albumId).all();
   return results.map(p => ({ ...p, qc_flags: p.qc_flags ? JSON.parse(p.qc_flags) : [] }));
@@ -398,7 +399,7 @@ async function qcApi(parts, method, request, env) {
     for (const [photoId, r] of Object.entries(body.results || {})) {
       const hidden = r.recommended ? 0 : 1;
       stmts.push(env.DB.prepare(
-        `UPDATE photos SET qc_status = 'done', qc_flags = ?, qc_score = ?,
+        `UPDATE photos SET qc_status = 'done', qc_flags = ?, qc_score = ?, qc_done_at = datetime('now'),
            hidden = CASE WHEN hidden_by = 'admin' THEN hidden ELSE ? END,
            hidden_by = CASE WHEN hidden_by = 'admin' THEN hidden_by ELSE 'qc' END
          WHERE id = ? AND album_id = ?`
@@ -406,6 +407,19 @@ async function qcApi(parts, method, request, env) {
     }
     if (stmts.length) await env.DB.batch(stmts);
     return json({ ok: true, updated: stmts.length });
+  }
+
+  // 걸러진 지 7일 지난 사진 지우기 (관리자가 되살리지 않은 것만)
+  if (res === 'cleanup' && method === 'POST') {
+    const { results } = await env.DB.prepare(
+      `SELECT id, album_id, orig_key FROM photos
+       WHERE hidden = 1 AND hidden_by = 'qc' AND qc_done_at < datetime('now', ?) LIMIT 500`
+    ).bind(`-${REJECT_KEEP_DAYS} days`).all();
+    for (const p of results) {
+      await deletePhotoObjects(env, p);
+      await env.DB.prepare('DELETE FROM photos WHERE id = ?').bind(p.id).run();
+    }
+    return json({ ok: true, deleted: results.length });
   }
 
   return fail(404, 'not found');
