@@ -30,6 +30,7 @@ export async function onRequestGet({ request, env, params }) {
   const headers = new Headers();
   obj.writeHttpMetadata(headers);
   headers.set('etag', obj.httpEtag);
+  headers.set('x-robots-tag', 'noindex, noimageindex, noai, noimageai');
   const isPublic = kind !== 'orig' && photo.status === 'approved' && !photo.pw_hash;
   headers.set('cache-control', isPublic ? 'public, max-age=86400' : 'private, max-age=3600');
   if (kind === 'orig') {
