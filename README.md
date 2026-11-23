@@ -26,7 +26,7 @@
   - `thumb/…` 목록용 (긴 변 480px)
   웹용과 목록용은 올리는 사람의 휴대폰에서 만들어 보내므로 서버에서 따로 압축하지 않습니다.
 - **Cloudflare D1** (`DB`): 부서, 앨범, 사진 목록, 올리는 사람. 표 구조는 `schema.sql`.
-- **로그인**: Cloudflare Access(이메일 확인 번호)로 `/upload.html`, `/admin.html`, `/login.html`, `/api/manage/*`, `/img/orig/*` 를 막고,
+- **로그인**: Cloudflare Access(이메일 확인 번호)로 `admin*`, `upload*`, `login*`, `api/manage/*`, `img/orig/*` 경로를 막고 (Pages 가 `.html` 을 뺀 주소로 넘기므로 별표까지),
   서버가 Access 토큰을 검증합니다. 최종 관리자는 `ADMIN_EMAILS`, 다른 관리자와 올리는 사람은 관리 화면에서 등록합니다.
 - **부서 공개 설정**: 부서마다 전체 공개 / 비밀번호 / 허락받은 사람만 중 하나. 비밀번호는 맞게 입력하면 180일 동안
   그 기기에서 다시 묻지 않습니다. "허락받은 사람만"은 `/login.html` 로 로그인해 열람 요청을 보내고 관리자가 허락합니다.
