@@ -117,7 +117,8 @@ const THUMB_MAX = 480;  // 목록용 긴 변
       }
       bar.style.width = `${Math.round(((i + 1) / files.length) * 100)}%`;
     }
-    status.textContent = `${done}장을 올렸습니다.` + (done ? ' 목사님이 승인하시면 사이트에 보입니다.' : '');
+    if (done) api(`/api/manage/albums/${encodeURIComponent(album.id)}/done`, { method: 'POST' }).catch(() => {});
+    status.textContent = `${done}장을 올렸습니다.` + (done ? ' 흔들린 사진 등은 자동으로 걸러지고, 목사님이 승인하시면 사이트에 보입니다.' : '');
     if (failed.length) errors.replaceChildren(h('p', {}, `올리지 못한 사진 ${failed.length}장:`), ...failed.map(f => h('div', {}, f)));
     content.querySelector('.form').append(
       h('div', { class: 'row' },

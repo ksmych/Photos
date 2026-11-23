@@ -30,16 +30,44 @@
 
   async function albumPanel(a, { review }) {
     const { photos } = await api(`/api/manage/albums/${a.id}`);
+    const FLAG = { blurry: '흔들림', dark: '어두움', bright: '너무 밝음', duplicate: '비슷한 사진', eyes_closed: '눈 감음', error: '검사 실패' };
+    const shown = () => photos.filter(p => !p.hidden).length;
+    const summary = h('div', { class: 'meta' });
+    const updateSummary = () => {
+      const waiting = photos.filter(p => p.qc_status === 'pending').length;
+      summary.textContent = waiting
+        ? `자동 선별 중… (${waiting}장 남음). 몇 분 뒤 새로 고쳐 주세요.`
+        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다.`;
+    };
     const thumbs = h('div', { class: 'thumbs' }, photos.map(p => {
-      const t = h('div', { class: 't' },
-        h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy', onclick: () => lightbox.open(photos, photos.indexOf(p)) }),
-        h('button', { title: '이 사진 빼기', onclick: async () => {
-          if (!confirm('이 사진을 지울까요? 원본도 함께 지워집니다.')) return;
+      const label = h('div', { class: 'qc' });
+      const pic = h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy' });
+      const t = h('div', { class: 't' }, pic, label,
+        h('button', { title: '사진 지우기', onclick: async e => {
+          e.stopPropagation();
+          if (!confirm('이 사진을 완전히 지울까요? 원본도 함께 지워집니다.')) return;
           await api(`/api/manage/photos/${p.id}`, { method: 'DELETE' });
+          photos.splice(photos.indexOf(p), 1);
           t.remove();
+          updateSummary();
         } }, '✕'));
+      const paint = () => {
+        t.classList.toggle('off', !!p.hidden);
+        const why = (p.qc_flags || []).map(f => FLAG[f] || f).join(', ');
+        label.textContent = p.hidden ? `빠짐${why ? ' · ' + why : ''}` : (p.qc_status === 'pending' ? '검사 중' : '');
+      };
+      // 누르면 보이기/빼기 전환
+      pic.addEventListener('click', async () => {
+        const hidden = !p.hidden;
+        await api(`/api/manage/photos/${p.id}/visibility`, { json: { hidden } });
+        p.hidden = hidden ? 1 : 0;
+        paint();
+        updateSummary();
+      });
+      paint();
       return t;
     }));
+    updateSummary();
     const act = async (path, opts, confirmMsg) => {
       if (confirmMsg && !confirm(confirmMsg)) return;
       await api(`/api/manage/albums/${a.id}${path}`, opts);
@@ -48,9 +76,11 @@
     const panel = h('div', { class: 'panel' },
       h('h3', {}, a.title, ' ', h('span', { class: `badge ${a.status}` }, { pending: '승인 대기', approved: '올라감', rejected: '반려' }[a.status])),
       h('div', { class: 'meta' }, [deptName(a.dept_id), a.event_date && fmtDate(a.event_date), `사진 ${photos.length}장`, `올린 사람 ${a.created_by}`].filter(Boolean).join(' · ')),
+      summary,
       thumbs,
       h('div', { class: 'row' },
-        review ? h('button', { class: 'btn ok', onclick: () => act('/approve', { method: 'POST' }) }, '✔ 승인') : null,
+        h('button', { class: 'btn secondary small', onclick: () => lightbox.open(photos.filter(p => !p.hidden), 0) }, '크게 보기'),
+        review ? h('button', { class: 'btn ok', onclick: () => act('/approve', { method: 'POST' }) }, '✔ 승인 (보일 사진만 공개)') : null,
         review ? h('button', { class: 'btn danger', onclick: () => act('/reject', { method: 'POST' }, '이 앨범을 반려할까요? 사이트에 보이지 않습니다.') }, '반려')
                : h('a', { class: 'btn secondary small', href: `/album.html?id=${a.id}`, target: '_blank' }, '사이트에서 보기'),
         h('button', { class: 'btn secondary small', onclick: async () => {

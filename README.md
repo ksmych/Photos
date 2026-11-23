@@ -27,10 +27,22 @@
   서버가 Access 토큰을 검증합니다. 관리자는 `ADMIN_EMAILS`, 올리는 사람은 관리 화면에서 등록합니다.
 - **부서 비밀번호**: 관리 화면에서 정합니다. 맞게 입력하면 180일 동안 그 기기에서 다시 묻지 않습니다.
 
+## 사진 자동 선별 (GitHub Actions)
+
+담당자가 올리기를 마치면 Cloudflare 가 `photo-qc.yml` 을 깨우고, `scripts/photo_qc.py` 가 앨범마다
+흔들림, 어두움/너무 밝음, 비슷한 사진(가장 좋은 한 장만 남김), 눈 감음을 검사합니다.
+걸린 사진은 "빠짐"으로 표시되어 사이트에 보이지 않고, 관리 화면에서 사진을 눌러 다시 넣을 수 있습니다.
+관리자가 직접 바꾼 사진은 다시 검사해도 바뀌지 않습니다. 검사에는 원본이 아니라 화면용 사진(위치 정보 없음)만 씁니다.
+
+- GitHub Secrets: `SITE_URL` (사진첩 주소), `QC_TOKEN` (Cloudflare 의 `QC_TOKEN` 과 같은 값)
+- Cloudflare 환경 변수: `QC_TOKEN`(비밀), `GH_DISPATCH_TOKEN`(비밀, 이 저장소 Actions 쓰기 권한만 있는 fine-grained 토큰), `GH_REPO`=`ksmych/Photos`
+- 놓친 경우를 위해 6시간마다 한 번 더 확인하며, 검사할 사진이 없으면 몇 초 만에 끝납니다.
+- 로컬 시험: `python scripts/photo_qc.py --local 사진폴더`
+
 ## 처음 설정 (한 번만)
 
 1. Cloudflare 가입 후 R2 버킷 `gsmy-photos`, D1 데이터베이스 `gsmy-photos` 를 만듭니다.
-2. `wrangler.toml` 의 `database_id` 를 채우고 `npx wrangler d1 execute gsmy-photos --remote --file=schema.sql` 로 표를 만듭니다.
+2. `wrangler.toml` 의 `database_id` 를 채우고 (자동 선별 추가 전에 표를 만들었다면 `migrations/0002_photo_qc.sql` 도 실행) `npx wrangler d1 execute gsmy-photos --remote --file=schema.sql` 로 표를 만듭니다.
 3. Pages 프로젝트를 이 GitHub 저장소에 연결합니다 (빌드 명령 없음, 출력 폴더 `public`).
 4. Pages 설정의 환경 변수: `ADMIN_EMAILS`, `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD`, 비밀 값 `SESSION_SECRET`(긴 임의 문자열).
 5. Zero Trust → Access 에서 위 네 경로를 묶은 앱을 만들고, 정책은 "이메일 확인 번호로 로그인한 누구나"로 둡니다

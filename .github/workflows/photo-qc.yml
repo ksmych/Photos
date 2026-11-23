@@ -1,0 +1,51 @@
+name: 사진 자동 선별
+
+# 사진첩에서 올리기를 마치면 Cloudflare 가 이 작업을 깨웁니다 (workflow_dispatch).
+# 혹시 놓친 경우를 위해 6시간마다 한 번 더 확인합니다. 검사할 사진이 없으면 바로 끝납니다.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+
+concurrency:
+  group: photo-qc
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  qc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SITE_URL: ${{ secrets.SITE_URL }}
+      QC_TOKEN: ${{ secrets.QC_TOKEN }}
+    steps:
+      - name: 검사할 사진이 있는지 확인
+        id: check
+        run: |
+          n=$(curl -fsS -H "Authorization: Bearer $QC_TOKEN" "$SITE_URL/api/qc/pending" \
+              | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["albums"]))')
+          echo "검사할 앨범: $n"
+          echo "count=$n" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.count != '0'
+
+      - uses: actions/setup-python@v5
+        if: steps.check.outputs.count != '0'
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: scripts/requirements-qc.txt
+
+      - name: 프로그램 설치
+        if: steps.check.outputs.count != '0'
+        run: |
+          sudo apt-get install -y -q libegl1 libgles2 > /dev/null
+          pip install -q -r scripts/requirements-qc.txt
+
+      - name: 사진 선별
+        if: steps.check.outputs.count != '0'
+        run: python scripts/photo_qc.py

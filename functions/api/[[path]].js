@@ -15,6 +15,7 @@ export async function onRequest(context) {
   try {
     const user = await getUser(request, env);
     if (parts[0] === 'manage') return await manage(parts.slice(1), method, request, env, user);
+    if (parts[0] === 'qc') return await qcApi(parts.slice(1), method, request, env);
     return await publicApi(parts, method, request, env, user);
   } catch (err) {
     console.error(err);
@@ -24,9 +25,12 @@ export async function onRequest(context) {
 
 /* ───────────── 공통 조회 ───────────── */
 
+// count/cover 는 사이트에 보이는 사진 기준, total 은 숨긴 사진 포함
 const ALBUM_COLS = `a.id, a.dept_id, a.title, a.event_date, a.status, a.created_by, a.created_at, a.reviewed_at,
-  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id) AS count,
-  (SELECT p.id FROM photos p WHERE p.album_id = a.id ORDER BY p.sort, p.created_at LIMIT 1) AS cover`;
+  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND p.hidden = 0) AS count,
+  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id) AS total,
+  (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND p.qc_status = 'pending') AS qc_pending,
+  (SELECT p.id FROM photos p WHERE p.album_id = a.id AND p.hidden = 0 ORDER BY p.sort, p.created_at LIMIT 1) AS cover`;
 
 async function listDepts(env) {
   const { results } = await env.DB.prepare('SELECT id, name, sort, pw_hash FROM depts ORDER BY sort').all();
@@ -41,11 +45,12 @@ async function getAlbum(env, id) {
   return env.DB.prepare(`SELECT ${ALBUM_COLS} FROM albums a WHERE a.id = ?`).bind(id).first();
 }
 
-async function albumPhotos(env, albumId) {
+async function albumPhotos(env, albumId, { all = false } = {}) {
   const { results } = await env.DB.prepare(
-    'SELECT id, width, height, orig_name, orig_size FROM photos WHERE album_id = ? ORDER BY sort, created_at'
+    `SELECT id, width, height, orig_name, orig_size, qc_status, qc_flags, qc_score, hidden, hidden_by
+     FROM photos WHERE album_id = ? ${all ? '' : 'AND hidden = 0'} ORDER BY sort, created_at`
   ).bind(albumId).all();
-  return results;
+  return results.map(p => ({ ...p, qc_flags: p.qc_flags ? JSON.parse(p.qc_flags) : [] }));
 }
 
 const publicDept = d => ({ id: d.id, name: d.name, locked: !!d.pw_hash });
@@ -170,7 +175,14 @@ async function manage(parts, method, request, env, user) {
 
     if (!action && method === 'GET') {
       if (!isAdmin(user) && !mine) return fail(403, '권한이 없습니다');
-      return json({ album, photos: await albumPhotos(env, id) });
+      return json({ album, photos: await albumPhotos(env, id, { all: true }) });
+    }
+
+    // 올리기를 마쳤을 때: 자동 선별(GitHub Actions)을 깨웁니다
+    if (action === 'done' && method === 'POST') {
+      if (!isAdmin(user) && !mine) return fail(403, '권한이 없습니다');
+      const triggered = await triggerQc(env);
+      return json({ ok: true, triggered });
     }
 
     // 사진 한 장 올리기: 원본 + 웹용 + 썸네일
@@ -238,6 +250,15 @@ async function manage(parts, method, request, env, user) {
       await deleteAlbum(env, id);
       return json({ ok: true });
     }
+  }
+
+  // 사진 보이기/빼기 (관리자): 자동 선별 결과를 직접 바꿈
+  if (res === 'photos' && id && action === 'visibility' && method === 'POST') {
+    if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
+    const body = await request.json().catch(() => ({}));
+    await env.DB.prepare("UPDATE photos SET hidden = ?, hidden_by = 'admin' WHERE id = ?")
+      .bind(body.hidden ? 1 : 0, id).run();
+    return json({ ok: true });
   }
 
   if (res === 'photos' && id && method === 'DELETE') {
@@ -321,4 +342,71 @@ async function deleteAlbum(env, albumId) {
     env.DB.prepare('DELETE FROM photos WHERE album_id = ?').bind(albumId),
     env.DB.prepare('DELETE FROM albums WHERE id = ?').bind(albumId),
   ]);
+}
+
+/* ───────────── 자동 선별 API (GitHub Actions 전용) ───────────── */
+
+async function triggerQc(env) {
+  if (!env.GH_DISPATCH_TOKEN || !env.GH_REPO) return false;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${env.GH_REPO}/actions/workflows/photo-qc.yml/dispatches`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${env.GH_DISPATCH_TOKEN}`,
+        accept: 'application/vnd.github+json',
+        'user-agent': 'church-photo-album',
+      },
+      body: JSON.stringify({ ref: env.GH_BRANCH || 'main' }),
+    });
+    return res.status === 204;
+  } catch {
+    return false;
+  }
+}
+
+async function qcApi(parts, method, request, env) {
+  const auth = request.headers.get('authorization') || '';
+  if (!env.QC_TOKEN || !timingSafeEqualHex(auth, `Bearer ${env.QC_TOKEN}`)) return fail(401, 'unauthorized');
+  const [res, id, action] = parts;
+
+  if (res === 'pending' && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      "SELECT DISTINCT album_id FROM photos WHERE qc_status = 'pending' LIMIT 50"
+    ).all();
+    return json({ albums: results.map(r => r.album_id) });
+  }
+
+  if (res === 'albums' && id && method === 'GET') {
+    const { results } = await env.DB.prepare(
+      'SELECT id FROM photos WHERE album_id = ? ORDER BY sort, created_at'
+    ).bind(id).all();
+    return json({ photos: results });
+  }
+
+  if (res === 'photos' && id && action === 'web' && method === 'GET') {
+    const photo = await env.DB.prepare('SELECT id, album_id FROM photos WHERE id = ?').bind(id).first();
+    if (!photo) return fail(404, 'not found');
+    const obj = await env.PHOTOS.get(`web/${photo.album_id}/${photo.id}.jpg`);
+    if (!obj) return fail(404, 'not found');
+    return new Response(obj.body, { headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store' } });
+  }
+
+  // 결과 적기. 관리자가 직접 보이기/빼기 한 사진은 건드리지 않음
+  if (res === 'albums' && id && method === 'POST') {
+    const body = await request.json().catch(() => ({}));
+    const stmts = [];
+    for (const [photoId, r] of Object.entries(body.results || {})) {
+      const hidden = r.recommended ? 0 : 1;
+      stmts.push(env.DB.prepare(
+        `UPDATE photos SET qc_status = 'done', qc_flags = ?, qc_score = ?,
+           hidden = CASE WHEN hidden_by = 'admin' THEN hidden ELSE ? END,
+           hidden_by = CASE WHEN hidden_by = 'admin' THEN hidden_by ELSE 'qc' END
+         WHERE id = ? AND album_id = ?`
+      ).bind(JSON.stringify(r.flags || []), r.score ?? null, hidden, photoId, id));
+    }
+    if (stmts.length) await env.DB.batch(stmts);
+    return json({ ok: true, updated: stmts.length });
+  }
+
+  return fail(404, 'not found');
 }

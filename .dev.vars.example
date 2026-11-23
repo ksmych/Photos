@@ -2,3 +2,4 @@
 DEV_USER_EMAIL=admin@example.com
 ADMIN_EMAILS=admin@example.com
 SESSION_SECRET=local-dev-secret-change-me
+QC_TOKEN=local-qc-token

@@ -39,9 +39,16 @@ CREATE TABLE IF NOT EXISTS photos (
   width      INTEGER,
   height     INTEGER,
   sort       INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- 자동 선별 (GitHub Actions)
+  qc_status  TEXT NOT NULL DEFAULT 'pending',     -- pending / done
+  qc_flags   TEXT,                                -- 예: ["blurry","duplicate"]
+  qc_score   REAL,                                -- 선명도
+  hidden     INTEGER NOT NULL DEFAULT 0,          -- 1 이면 사이트에 안 보임
+  hidden_by  TEXT                                 -- 'qc'(자동) 또는 'admin'(직접)
 );
 CREATE INDEX IF NOT EXISTS photos_album ON photos (album_id, sort);
+CREATE INDEX IF NOT EXISTS photos_qc ON photos (qc_status);
 
 INSERT OR IGNORE INTO depts (id, name, sort) VALUES
   ('church-events', '교회행사', 1),
