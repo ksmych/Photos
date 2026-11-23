@@ -314,6 +314,23 @@ async function manage(parts, method, request, env, user) {
     }
 
     // 아래는 관리자 전용
+    // 사진 순서 바꾸기: ids 를 원하는 순서로 보냅니다.
+    // 지금 쓰고 있는 sort 값(대부분 찍은 시각)을 그대로 나눠 주기 때문에, 나중에 올리는 사진도 찍은 시각대로 끼어듭니다.
+    if (action === 'order' && method === 'POST') {
+      const body = await request.json().catch(() => ({}));
+      const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
+      const { results } = await env.DB.prepare('SELECT id, sort FROM photos WHERE album_id = ?').bind(id).all();
+      const have = new Set(results.map(r => r.id));
+      if (ids.length !== results.length || ids.some(x => !have.has(x)) || new Set(ids).size !== ids.length) {
+        return fail(400, '사진 목록이 맞지 않습니다. 새로 고친 뒤 다시 해 주세요');
+      }
+      const values = results.map(r => Number(r.sort) || 0).sort((a, b) => a - b);
+      for (let i = 1; i < values.length; i++) if (values[i] <= values[i - 1]) values[i] = values[i - 1] + 1;
+      await env.DB.batch(ids.map((pid, i) =>
+        env.DB.prepare('UPDATE photos SET sort = ? WHERE id = ? AND album_id = ?').bind(values[i], pid, id)));
+      return json({ ok: true });
+    }
+
     // 메인에 걸기: 이 앨범을 지금부터 다음 월요일 0시까지 메인 슬라이드쇼에
     if (action === 'feature' && method === 'POST') {
       const dept = await getDept(env, album.dept_id);

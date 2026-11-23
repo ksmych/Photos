@@ -116,13 +116,14 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     content.replaceChildren(h('div', { class: 'form' },
       h('p', {}, h('strong', {}, album.title), ' 앨범에 올리는 중입니다. 다 될 때까지 화면을 닫지 마세요.'),
       h('div', { class: 'progress' }, bar), status, errors));
-    const base = album.count || 0;
     let done = 0;
     const failed = [];
     for (let i = 0; i < files.length; i++) {
       status.textContent = `${files.length}장 중 ${i + 1}번째 올리는 중…`;
       try {
-        await uploadOne(album.id, files[i], base + i);
+        // 찍은 시각(초)으로 순서를 정합니다. 찍은 시각이 없는 사진(카톡에서 지워진 경우 등)은 올린 순서대로 뒤에 붙습니다.
+        const taken = await takenTime(files[i]);
+        await uploadOne(album.id, files[i], taken ?? Math.floor(Date.now() / 1000) + i);
         done++;
       } catch (err) {
         failed.push(`${files[i].name}: ${err.message}`);
@@ -193,6 +194,49 @@ async function decode(file) {
     im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이 사진 형식은 열 수 없습니다')); };
     im.src = url;
   });
+}
+
+// JPEG 속 EXIF 에서 찍은 시각을 읽습니다 (원본은 바꾸지 않음). 못 읽으면 null.
+async function takenTime(file) {
+  try {
+    const buf = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+    if (buf.getUint16(0) !== 0xffd8) return null;
+    let off = 2;
+    while (off + 4 < buf.byteLength) {
+      const marker = buf.getUint16(off);
+      const len = buf.getUint16(off + 2);
+      if (marker === 0xffe1 && buf.getUint32(off + 4) === 0x45786966) return readExifDate(buf, off + 10);
+      if ((marker & 0xff00) !== 0xff00 || marker === 0xffda) return null;
+      off += 2 + len;
+    }
+  } catch { /* 읽을 수 없는 파일 */ }
+  return null;
+}
+
+function readExifDate(v, tiff) {
+  const le = v.getUint16(tiff) === 0x4949;
+  const u16 = o => v.getUint16(tiff + o, le);
+  const u32 = o => v.getUint32(tiff + o, le);
+  const tags = ifd => {
+    const out = {};
+    const n = u16(ifd);
+    for (let i = 0; i < n; i++) {
+      const e = ifd + 2 + i * 12;
+      out[u16(e)] = { type: u16(e + 2), count: u32(e + 4), value: u32(e + 8) };
+    }
+    return out;
+  };
+  const str = t => {
+    if (!t || t.type !== 2 || t.count < 19) return null;
+    let s = '';
+    for (let i = 0; i < 19; i++) s += String.fromCharCode(v.getUint8(tiff + t.value + i));
+    const m = s.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+    if (!m || m[1] === '0000') return null;
+    return Math.floor(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000) - 9 * 3600;
+  };
+  const ifd0 = tags(u32(4));
+  const exif = ifd0[0x8769] ? tags(ifd0[0x8769].value) : {};
+  return str(exif[0x9003]) ?? str(exif[0x9004]) ?? str(ifd0[0x0132]);
 }
 
 function resize(src, max, quality) {

@@ -65,13 +65,13 @@
       const waiting = photos.filter(p => p.qc_status === 'pending').length;
       summary.textContent = waiting
         ? `자동 선별 중… (${waiting}장 남음). 몇 분 뒤 새로 고쳐 주세요.`
-        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
+        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. ◀ ▶ 로 순서를 바꾸고, "맨 앞" 사진이 표지가 됩니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
     };
     const thumbs = h('div', { class: 'thumbs' }, photos.map(p => {
       const label = h('div', { class: 'qc' });
       const pic = h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy' });
       const t = h('div', { class: 't' }, pic, label,
-        h('button', { title: '사진 지우기', onclick: async e => {
+        h('button', { class: 'del', title: '사진 지우기', onclick: async e => {
           e.stopPropagation();
           if (!confirm('이 사진을 완전히 지울까요? 원본도 함께 지워집니다.')) return;
           await api(`/api/manage/photos/${p.id}`, { method: 'DELETE' });
@@ -97,9 +97,26 @@
         paint();
         updateSummary();
       });
+      // 순서 바꾸기: ◀ 앞으로, ▶ 뒤로, "맨 앞" 은 표지(첫 사진)로
+      const mv = (label, title, to) => h('button', { class: 'mv', type: 'button', title, onclick: e => { e.stopPropagation(); move(p, to()); } }, label);
+      t.append(h('div', { class: 'moves' },
+        mv('◀', '앞으로', () => photos.indexOf(p) - 1),
+        mv('맨 앞', '맨 앞(표지)으로', () => 0),
+        mv('▶', '뒤로', () => photos.indexOf(p) + 1)));
+      p.el = t;
       paint();
       return t;
     }));
+    async function move(p, to) {
+      const from = photos.indexOf(p);
+      if (to < 0 || to >= photos.length || to === from) return;
+      photos.splice(from, 1);
+      photos.splice(to, 0, p);
+      thumbs.replaceChildren(...photos.map(x => x.el));
+      try {
+        await api(`/api/manage/albums/${a.id}/order`, { json: { ids: photos.map(x => x.id) } });
+      } catch (err) { alert(err.message); }
+    }
     updateSummary();
     const act = async (path, opts, confirmMsg) => {
       if (confirmMsg && !confirm(confirmMsg)) return;
