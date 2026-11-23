@@ -124,7 +124,7 @@
         h('button', { class: 'btn secondary small', onclick: async () => {
           const title = prompt('앨범 이름', a.title);
           if (title == null) return;
-          const date = prompt('행사 날짜 (예: 2026-11-15, 비워도 됨)', a.event_date || '');
+          const date = prompt('행사 날짜 (예: 2026-11-15). 앨범 이름 앞의 날짜도 같이 바뀝니다', a.event_date || '');
           if (date == null) return;
           await api(`/api/manage/albums/${a.id}`, { method: 'PATCH', json: { title, event_date: date } });
           select(a.status);
@@ -280,7 +280,7 @@
         h('p', {}, `사진 ${photos.length}장, 약 ${(size / 1024 / 1024).toFixed(0)}MB`),
         gb > 1.5 ? h('p', { class: 'error' }, '용량이 커서 한 번에 받으면 컴퓨터가 버거울 수 있습니다. "올라간 앨범"에서 앨범별로 받으시는 걸 권합니다.') : null,
         h('button', { class: 'btn', onclick: e => downloadZip(e.target, `경산목양교회_사진원본_${year.value}`,
-          photos.map(p => ({ url: img('orig', p.id), path: `${safe(p.dept_name)}/${safe((p.event_date || '') + ' ' + p.title)}/${safe(p.orig_name || p.id + '.jpg')}` }))) },
+          photos.map(p => ({ url: img('orig', p.id), path: `${safe(p.dept_name)}/${safe(p.title)}/${safe(p.orig_name || p.id + '.jpg')}` }))) },
           '원본 한꺼번에 받기 (zip)'));
     };
     body.replaceChildren(h('div', { class: 'form' },

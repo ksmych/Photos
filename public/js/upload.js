@@ -28,8 +28,20 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     const deptSel = h('select', { required: true },
       h('option', { value: '' }, '부서를 고르세요'),
       depts.map(d => h('option', { value: d.id }, d.name)));
-    const title = h('input', { type: 'text', maxlength: 80, placeholder: '예: 성탄절 예배', required: true });
-    const date = h('input', { type: 'date', value: new Date().toLocaleDateString('sv-SE') });
+    const title = h('input', { type: 'text', maxlength: 80, placeholder: '예: 추수감사주일 성례식', required: true, style: 'flex:1;min-width:0' });
+    const date = h('input', { type: 'date', value: new Date().toLocaleDateString('sv-SE'), required: true });
+    // 앨범 이름 앞에 날짜가 자동으로 붙습니다: 20261115_추수감사주일 성례식
+    const prefix = h('span', { style: 'font-weight:700;white-space:nowrap' });
+    const preview = h('div', { class: 'meta', style: 'font-weight:400;color:var(--muted)' });
+    const refresh = () => {
+      const d = (date.value || '').replace(/-/g, '');
+      prefix.textContent = d ? `${d}_` : '';
+      const name = title.value.trim().replace(/^\d{8}_\s*/, '');
+      preview.textContent = name ? `앨범 이름: ${d}_${name}` : '날짜는 자동으로 앞에 붙습니다.';
+    };
+    date.addEventListener('input', refresh);
+    title.addEventListener('input', refresh);
+    refresh();
     const msg = h('div', { class: 'error', role: 'alert' });
     const form = h('form', { class: 'form' },
       shared.length
@@ -37,8 +49,8 @@ const THUMB_MAX = 480;  // 목록용 긴 변
         : h('p', {}, `${me.name || me.email} 님, 새 앨범을 만들어 사진을 올립니다.`),
       warn ? h('p', { class: 'error' }, warn) : null,
       h('label', {}, '① 부서', deptSel),
-      h('label', {}, '② 앨범 이름', title),
-      h('label', {}, '③ 행사 날짜', date),
+      h('label', {}, '② 행사 날짜', date),
+      h('label', {}, '③ 행사 이름', h('div', { class: 'row', style: 'flex-wrap:nowrap' }, prefix, title), preview),
       msg,
       h('button', { class: 'btn', type: 'submit' }, shared.length ? `이 앨범에 ${shared.length}장 올리기` : '다음: 사진 고르기'));
     form.addEventListener('submit', async e => {

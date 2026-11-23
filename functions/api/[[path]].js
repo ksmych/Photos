@@ -46,6 +46,16 @@ const SHOWN = "p.hidden = 0 AND p.qc_status = 'done'";
 const VISIBLE = "a.status IN ('pending', 'approved')";
 
 // count/cover 는 사이트에 보이는 사진 기준, total 은 숨긴 사진 포함
+// 앨범 이름 앞에 행사 날짜를 "20261115_" 로 붙입니다. 날짜가 없으면 오늘(한국 시간).
+// 이미 붙어 있던 날짜는 떼고 다시 붙여서, 날짜를 고치면 이름 앞부분도 같이 바뀝니다.
+function todayKst() {
+  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+function datedTitle(title, eventDate) {
+  const name = String(title || '').trim().replace(/^\d{8}_\s*/, '').trim();
+  return name ? `${eventDate.replace(/-/g, '')}_${name}`.slice(0, 90) : '';
+}
+
 const ALBUM_COLS = `a.id, a.dept_id, a.title, a.event_date, a.status, a.created_by, a.created_at, a.reviewed_at,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id AND ${SHOWN}) AS count,
   (SELECT COUNT(*) FROM photos p WHERE p.album_id = a.id) AS total,
@@ -217,11 +227,11 @@ async function manage(parts, method, request, env, user) {
   // 앨범 만들기 (올리는 사람)
   if (res === 'albums' && !id && method === 'POST') {
     const body = await request.json().catch(() => ({}));
-    const title = String(body.title || '').trim().slice(0, 80);
     const deptId = String(body.dept_id || '');
-    const eventDate = body.event_date ? String(body.event_date) : null;
-    if (!title) return fail(400, '앨범 이름을 적어 주세요');
-    if (eventDate && !DATE_RE.test(eventDate)) return fail(400, '날짜 형식이 맞지 않습니다');
+    const eventDate = body.event_date ? String(body.event_date) : todayKst();
+    if (!DATE_RE.test(eventDate)) return fail(400, '날짜 형식이 맞지 않습니다');
+    const title = datedTitle(String(body.title || '').slice(0, 80), eventDate);
+    if (!title) return fail(400, '행사 이름을 적어 주세요');
     if (!(await getDept(env, deptId))) return fail(400, '부서를 골라 주세요');
     const albumId = crypto.randomUUID();
     await env.DB.prepare(
@@ -325,11 +335,11 @@ async function manage(parts, method, request, env, user) {
 
     if (!action && method === 'PATCH') {
       const body = await request.json().catch(() => ({}));
-      const title = body.title != null ? String(body.title).trim().slice(0, 80) : album.title;
-      const eventDate = body.event_date !== undefined ? (body.event_date || null) : album.event_date;
+      const eventDate = (body.event_date !== undefined ? body.event_date : album.event_date) || todayKst();
+      if (!DATE_RE.test(eventDate)) return fail(400, '날짜 형식이 맞지 않습니다');
+      const title = datedTitle(body.title != null ? String(body.title).slice(0, 80) : album.title, eventDate);
       const deptId = body.dept_id || album.dept_id;
-      if (!title) return fail(400, '앨범 이름을 적어 주세요');
-      if (eventDate && !DATE_RE.test(eventDate)) return fail(400, '날짜 형식이 맞지 않습니다');
+      if (!title) return fail(400, '행사 이름을 적어 주세요');
       if (!(await getDept(env, deptId))) return fail(400, '없는 부서입니다');
       await env.DB.prepare('UPDATE albums SET title = ?, event_date = ?, dept_id = ? WHERE id = ?')
         .bind(title, eventDate, deptId, id).run();
