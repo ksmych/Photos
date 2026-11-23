@@ -163,7 +163,8 @@ async function publicApi(parts, method, request, env, user) {
         if (list.length < 5) list.push({ id: a.id, title: a.title, count: a.count });
       }
     }
-    return json({ depts: depts.map(publicDept), featured, recent, tree });
+    const yt = await env.DB.prepare("SELECT value FROM settings WHERE key = 'youtube'").first();
+    return json({ depts: depts.map(publicDept), featured, recent, tree, youtube: yt ? yt.value : null });
   }
 
   if (res === 'depts' && id && !action && method === 'GET') {
@@ -416,6 +417,26 @@ async function manage(parts, method, request, env, user) {
     if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
     await env.DB.prepare('DELETE FROM featured').run();
     return json({ featured: await currentFeatured(env) });
+  }
+
+  // 첫 화면 오른쪽 찬양 영상 (유튜브). 주소를 넣으면 영상 번호만 뽑아 저장, 빈 값이면 없앰
+  if (res === 'youtube' && !id && method === 'GET') {
+    const yt = await env.DB.prepare("SELECT value FROM settings WHERE key = 'youtube'").first();
+    return json({ youtube: yt ? yt.value : null });
+  }
+  if (res === 'youtube' && !id && method === 'POST') {
+    if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
+    const body = await request.json().catch(() => ({}));
+    const raw = String(body.url || '').trim();
+    if (!raw) {
+      await env.DB.prepare("DELETE FROM settings WHERE key = 'youtube'").run();
+      return json({ youtube: null });
+    }
+    const m = raw.match(/(?:youtu\.be\/|[?&]v=|\/(?:embed|shorts|live)\/)([\w-]{11})/) || raw.match(/^([\w-]{11})$/);
+    if (!m) return fail(400, '유튜브 영상 주소가 아닌 것 같습니다. 유튜브에서 "공유 → 복사" 한 주소를 넣어 주세요');
+    await env.DB.prepare("INSERT INTO settings (key, value) VALUES ('youtube', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .bind(m[1]).run();
+    return json({ youtube: m[1] });
   }
 
   // 사진 보이기/빼기 (관리자): 자동 선별 결과를 직접 바꿈

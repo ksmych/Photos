@@ -11,6 +11,7 @@
   try { sessionStorage.setItem('depts', JSON.stringify(data.depts.map(d => ({ id: d.id, name: d.name })))); } catch { /* 저장 안 됨 */ }
 
   renderTree();
+  renderMusic();
   if (data.featured && data.featured.photos.length) renderFrame(data.featured);
   else $('#featured').append(h('div', { class: 'frame' }, h('div', { class: 'frame-inner empty' }, '사진이 올라오면 여기에 보입니다')));
 
@@ -31,6 +32,21 @@
           h('a', { href: `/album.html?id=${encodeURIComponent(a.id)}` },
             h('span', { class: 'line', 'aria-hidden': 'true' }, '└'), h('span', { class: 't' }, a.title))))) : null);
     }));
+  }
+
+  // 오른쪽 목록 아래: 찬양 영상 (유튜브). 누를 때만 재생됩니다.
+  function renderMusic() {
+    if (!data.youtube) return;
+    const box = $('#music');
+    box.replaceChildren(
+      h('div', { class: 'music-head' }, '♪ 찬양 듣기'),
+      h('div', { class: 'music-video' }, h('iframe', {
+        src: `https://www.youtube-nocookie.com/embed/${encodeURIComponent(data.youtube)}?rel=0`,
+        title: '찬양 영상', loading: 'lazy', allowfullscreen: '',
+        allow: 'accelerometer; encrypted-media; gyroscope; picture-in-picture',
+        referrerpolicy: 'strict-origin-when-cross-origin',
+      })));
+    box.hidden = false;
   }
 
   // 가운데: 액자 슬라이드쇼. 양옆에 앞뒤 사진을 흐리게 보여 줍니다.

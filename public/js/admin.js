@@ -184,10 +184,31 @@
       } }, '자동 선택으로 되돌리기') : null);
   }
 
+  // 첫 화면 오른쪽 찬양 영상 (유튜브 주소)
+  async function musicBox() {
+    const { youtube } = await api('/api/manage/youtube').catch(() => ({ youtube: null }));
+    const input = h('input', { type: 'url', placeholder: '유튜브 주소 붙여 넣기 (예: https://youtu.be/...)', value: youtube ? `https://youtu.be/${youtube}` : '', style: 'flex:1;min-width:14rem;width:auto' });
+    const msg = h('p', { class: 'meta' }, youtube ? '지금 첫 화면 오른쪽 부서 목록 아래에 이 영상이 나옵니다.' : '아직 넣은 영상이 없습니다.');
+    const save = async url => {
+      try {
+        const r = await api('/api/manage/youtube', { json: { url } });
+        input.value = r.youtube ? `https://youtu.be/${r.youtube}` : '';
+        msg.textContent = r.youtube ? '저장했습니다. 첫 화면 오른쪽 부서 목록 아래에 이 영상이 나옵니다.' : '영상을 뺐습니다.';
+      } catch (err) { msg.textContent = err.message; }
+    };
+    return h('div', { class: 'panel' },
+      h('h3', {}, '♪ 첫 화면 찬양 영상'),
+      h('p', { class: 'meta' }, '유튜브에서 영상의 "공유 → 복사"를 누른 뒤 아래 칸에 붙여 넣고 저장하세요. 방문자가 누를 때만 재생됩니다. 공식 채널 영상을 쓰세요.'),
+      h('div', { class: 'row' }, input,
+        h('button', { class: 'btn small', onclick: () => save(input.value) }, '저장'),
+        h('button', { class: 'btn secondary small', onclick: () => { if (confirm('첫 화면에서 영상을 뺄까요?')) save(''); } }, '빼기')),
+      msg);
+  }
+
   async function showAlbums(status, empty) {
     featured = (await api('/api/manage/featured')).featured;
     const { albums } = await api(`/api/manage/albums?status=${status}`);
-    const top = status === 'visible' ? [featuredBox()] : [];
+    const top = status === 'visible' ? [featuredBox(), await musicBox()] : [];
     if (!albums.length) return body.replaceChildren(...top, h('div', { class: 'notice' }, empty));
     body.replaceChildren(...top, ...await Promise.all(albums.map(a => albumPanel(a))));
   }
