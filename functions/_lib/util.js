@@ -97,7 +97,8 @@ export async function getUser(request, env) {
   if (!email) return null;
   email = email.toLowerCase();
 
-  const admins = (env.ADMIN_EMAILS || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
+  // 쉼표·세미콜론·띄어쓰기 어느 것으로 나눠도, 따옴표나 <> 로 감싸도 되게
+  const admins = (env.ADMIN_EMAILS || '').toLowerCase().split(/[\s,;]+/).map(s => s.replace(/^["'<]+|["'>]+$/g, '')).filter(Boolean);
   if (admins.includes(email)) return { email, role: 'admin', name: '관리자' };
 
   const row = await env.DB.prepare('SELECT name, role FROM users WHERE email = ?').bind(email).first();
