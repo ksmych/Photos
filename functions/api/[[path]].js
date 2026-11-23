@@ -8,6 +8,7 @@ const MAX_ORIGINAL = 60 * 1024 * 1024;   // 원본 한 장 최대 60MB
 const MAX_WEB = 8 * 1024 * 1024;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const REJECT_KEEP_DAYS = 7;   // 자동으로 걸러진 사진을 되살릴 수 있는 기간
+const FEATURE_DAYS = 7;       // 메인 슬라이드쇼에 한 번 걸린 앨범을 유지하는 최소 기간
 
 export async function onRequest(context) {
   const { request, env, params } = context;
@@ -28,7 +29,7 @@ export async function onRequest(context) {
 
 // 사이트에 보이는 사진: 선별이 끝났고 빠지지 않은 사진
 const SHOWN = "p.hidden = 0 AND p.qc_status = 'done'";
-// 사이트에 보이는 앨범: 내리지 않은 앨범 (pending = 부서 사진첩, approved = 메인에도 걸림)
+// 사이트에 보이는 앨범: 내리지 않은 앨범 (approved 는 예전 값, pending 과 같음)
 const VISIBLE = "a.status IN ('pending', 'approved')";
 
 // count/cover 는 사이트에 보이는 사진 기준, total 은 숨긴 사진 포함
@@ -59,6 +60,33 @@ async function albumPhotos(env, albumId, { all = false } = {}) {
   return results.map(p => ({ ...p, qc_flags: p.qc_flags ? JSON.parse(p.qc_flags) : [] }));
 }
 
+// 지금 메인 슬라이드쇼에 걸 앨범. 걸린 지 7일이 안 됐으면 그대로, 지났거나 내려졌으면 가장 최근 앨범으로 바꿉니다.
+async function currentFeatured(env) {
+  const depts = await listDepts(env);
+  const open = depts.filter(d => d.access === 'public').map(d => d.id);
+  const cur = await env.DB.prepare(
+    "SELECT album_id, since, chosen_by, julianday('now') - julianday(since) AS age FROM featured ORDER BY id DESC LIMIT 1"
+  ).first();
+  const curAlbum = cur ? await getAlbum(env, cur.album_id) : null;
+  const valid = !!curAlbum && curAlbum.status !== 'rejected' && curAlbum.count > 0 && open.includes(curAlbum.dept_id);
+  const pack = (album, row) => ({
+    album, since: row.since, chosen_by: row.chosen_by,
+    until: new Date(Date.parse(row.since.replace(' ', 'T') + 'Z') + FEATURE_DAYS * 86400000).toISOString(),
+  });
+  if (valid && cur.age < FEATURE_DAYS) return pack(curAlbum, cur);
+  if (!open.length) return null;
+  const marks = open.map(() => '?').join(',');
+  const { results } = await env.DB.prepare(
+    `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks}) ORDER BY a.created_at DESC LIMIT 10`
+  ).bind(...open).all();
+  const newest = results.find(a => a.count > 0);
+  if (!newest) return valid ? pack(curAlbum, cur) : null;
+  if (valid && newest.id === curAlbum.id) return pack(curAlbum, cur);
+  await env.DB.prepare("INSERT INTO featured (album_id, chosen_by) VALUES (?, 'auto')").bind(newest.id).run();
+  const row = await env.DB.prepare('SELECT since, chosen_by FROM featured ORDER BY id DESC LIMIT 1').first();
+  return pack(newest, row);
+}
+
 const publicDept = d => ({ id: d.id, name: d.name, access: d.access, locked: d.access !== 'public' });
 
 /* ───────────── 공개 API ───────────── */
@@ -76,14 +104,10 @@ async function publicApi(parts, method, request, env, user) {
     const open = depts.filter(d => d.access === 'public').map(d => d.id);
     let featured = null;
     let recent = [];
+    const cur = await currentFeatured(env);
+    if (cur) featured = { album: cur.album, photos: await albumPhotos(env, cur.album.id) };
     if (open.length) {
       const marks = open.map(() => '?').join(',');
-      const { results: feat } = await env.DB.prepare(
-        `SELECT ${ALBUM_COLS} FROM albums a WHERE a.status = 'approved' AND a.dept_id IN (${marks})
-         ORDER BY a.reviewed_at DESC LIMIT 5`
-      ).bind(...open).all();
-      const top = feat.find(a => a.count > 0);
-      if (top) featured = { album: top, photos: await albumPhotos(env, top.id) };
       const { results: rec } = await env.DB.prepare(
         `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks})
          ORDER BY a.created_at DESC LIMIT 12`
@@ -192,7 +216,8 @@ async function manage(parts, method, request, env, user) {
     const where = [];
     const binds = [];
     if (!isAdmin(user)) { where.push('a.created_by = ?'); binds.push(user.email); }
-    if (status) { where.push('a.status = ?'); binds.push(status); }
+    if (status === 'visible') where.push(VISIBLE);
+    else if (status) { where.push('a.status = ?'); binds.push(status); }
     const { results } = await env.DB.prepare(
       `SELECT ${ALBUM_COLS}, d.name AS dept_name FROM albums a JOIN depts d ON d.id = a.dept_id
        ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY a.created_at DESC LIMIT 200`
@@ -258,9 +283,19 @@ async function manage(parts, method, request, env, user) {
     }
 
     // 아래는 관리자 전용
-    // approve: 메인에 걸기 / unfeature: 메인에서 내리기(부서에는 그대로) / reject: 사이트에서 내리기
-    if (['approve', 'unfeature', 'reject'].includes(action) && method === 'POST') {
-      const status = { approve: 'approved', unfeature: 'pending', reject: 'rejected' }[action];
+    // 메인에 걸기: 이 앨범을 지금부터 메인 슬라이드쇼에 (다시 7일 유지)
+    if (action === 'feature' && method === 'POST') {
+      const dept = await getDept(env, album.dept_id);
+      if (album.status === 'rejected') return fail(400, '내린 앨범은 메인에 걸 수 없습니다');
+      if (dept.access !== 'public') return fail(400, '전체 공개 부서의 앨범만 메인에 걸 수 있습니다');
+      if (!album.count) return fail(400, '보이는 사진이 없는 앨범입니다');
+      await env.DB.prepare('INSERT INTO featured (album_id, chosen_by) VALUES (?, ?)').bind(id, user.email).run();
+      return json({ featured: await currentFeatured(env) });
+    }
+
+    // restore: 다시 올리기 / reject: 사이트에서 내리기
+    if (['restore', 'reject'].includes(action) && method === 'POST') {
+      const status = { restore: 'pending', reject: 'rejected' }[action];
       await env.DB.prepare(
         "UPDATE albums SET status = ?, reviewed_by = ?, reviewed_at = strftime('%Y-%m-%d %H:%M:%f','now') WHERE id = ?"
       ).bind(status, user.email, id).run();
@@ -284,6 +319,16 @@ async function manage(parts, method, request, env, user) {
       await deleteAlbum(env, id);
       return json({ ok: true });
     }
+  }
+
+  // 지금 메인 슬라이드쇼 (관리자 화면용) / 자동으로 되돌리기
+  if (res === 'featured' && !id && method === 'GET') {
+    return json({ featured: await currentFeatured(env) });
+  }
+  if (res === 'featured' && id === 'auto' && method === 'POST') {
+    if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
+    await env.DB.prepare('DELETE FROM featured').run();
+    return json({ featured: await currentFeatured(env) });
   }
 
   // 사진 보이기/빼기 (관리자): 자동 선별 결과를 직접 바꿈
@@ -408,6 +453,7 @@ async function deleteAlbum(env, albumId) {
   for (const p of results) await deletePhotoObjects(env, p);
   await env.DB.batch([
     env.DB.prepare('DELETE FROM photos WHERE album_id = ?').bind(albumId),
+    env.DB.prepare('DELETE FROM featured WHERE album_id = ?').bind(albumId),
     env.DB.prepare('DELETE FROM albums WHERE id = ?').bind(albumId),
   ]);
 }

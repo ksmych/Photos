@@ -10,10 +10,10 @@
   const { depts } = await api('/api/manage/depts');
   const deptName = id => (depts.find(d => d.id === id) || {}).name || id;
 
-  const STATUS = { pending: '부서 사진첩', approved: '메인 화면', rejected: '내림' };
+  const STATUS = { pending: '부서 사진첩', approved: '부서 사진첩', rejected: '내림' };
+  let featured = null;
   const tabs = [
-    ['pending', '새 앨범', () => showAlbums('pending', '새로 올라온 앨범이 없습니다. 올라온 앨범은 부서 사진첩에 바로 보이고, "메인에 걸기"를 누르면 첫 화면 슬라이드쇼에도 나옵니다.')],
-    ['approved', '메인 화면 앨범', () => showAlbums('approved', '메인 화면에 건 앨범이 없습니다.')],
+    ['visible', '앨범', () => showAlbums('visible', '아직 올라온 앨범이 없습니다.')],
     ['rejected', '내린 앨범', () => showAlbums('rejected', '내린 앨범이 없습니다.')],
     ['viewers', '열람 요청', showViewers],
     ['depts', '부서 공개 설정', showDepts],
@@ -29,7 +29,7 @@
     body.replaceChildren(h('div', { class: 'notice' }, '불러오는 중…'));
     tabs.find(t => t[0] === key)[2]().catch(err => body.replaceChildren(h('div', { class: 'error' }, err.message)));
   }
-  select('pending');
+  select('visible');
 
   async function albumPanel(a) {
     const { photos } = await api(`/api/manage/albums/${a.id}`);
@@ -82,15 +82,19 @@
       panel.remove();
     };
     const panel = h('div', { class: 'panel' },
-      h('h3', {}, a.title, ' ', h('span', { class: `badge ${a.status}` }, STATUS[a.status])),
+      h('h3', {}, a.title, ' ', h('span', { class: `badge ${a.status}` }, STATUS[a.status]),
+        featured && featured.album.id === a.id ? h('span', { class: 'badge approved', style: 'margin-left:0.3rem' }, '★ 지금 메인') : null),
       h('div', { class: 'meta' }, [deptName(a.dept_id), a.event_date && fmtDate(a.event_date), `사진 ${photos.length}장`, `올린 사람 ${a.created_by}`].filter(Boolean).join(' · ')),
       summary,
       thumbs,
       h('div', { class: 'row' },
         h('button', { class: 'btn secondary small', onclick: () => lightbox.open(photos.filter(p => !p.hidden), 0) }, '크게 보기'),
-        a.status === 'pending' ? h('button', { class: 'btn ok', onclick: () => act('/approve', { method: 'POST' }) }, '★ 메인에 걸기') : null,
-        a.status === 'approved' ? h('button', { class: 'btn secondary', onclick: () => act('/unfeature', { method: 'POST' }) }, '메인에서 내리기') : null,
-        a.status === 'rejected' ? h('button', { class: 'btn ok', onclick: () => act('/unfeature', { method: 'POST' }) }, '다시 올리기') : null,
+        a.status !== 'rejected' && !(featured && featured.album.id === a.id) && deptPublic(a.dept_id)
+          ? h('button', { class: 'btn ok', onclick: async () => {
+              try { await api(`/api/manage/albums/${a.id}/feature`, { method: 'POST' }); select('visible'); }
+              catch (err) { alert(err.message); }
+            } }, '★ 메인에 걸기') : null,
+        a.status === 'rejected' ? h('button', { class: 'btn ok', onclick: () => act('/restore', { method: 'POST' }) }, '다시 올리기') : null,
         a.status !== 'rejected' ? h('a', { class: 'btn secondary small', href: `/album.html?id=${a.id}`, target: '_blank' }, '사이트에서 보기') : null,
         h('button', { class: 'btn secondary small', onclick: async () => {
           const title = prompt('앨범 이름', a.title);
@@ -107,10 +111,32 @@
     return panel;
   }
 
+  function deptPublic(id) { return (depts.find(d => d.id === id) || {}).access === 'public'; }
+
+  function featuredBox() {
+    if (!featured) return h('div', { class: 'panel' }, h('h3', {}, '메인 슬라이드쇼'), h('p', {}, '아직 걸린 앨범이 없습니다. 전체 공개 부서에 앨범이 올라오면 자동으로 걸립니다.'));
+    const until = new Date(featured.until);
+    const left = until > new Date();
+    return h('div', { class: 'panel' },
+      h('h3', {}, '★ 지금 메인 슬라이드쇼'),
+      h('p', {}, h('strong', {}, `${deptName(featured.album.dept_id)} · ${featured.album.title}`)),
+      h('p', { class: 'meta' }, `${featured.chosen_by === 'auto' ? '가장 최근 앨범이라 자동으로' : '목사님이 직접'} 걸렸습니다. `,
+        left ? `${until.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}까지는 새 앨범이 올라와도 바뀌지 않습니다.`
+             : '유지 기간이 지나서, 새 앨범이 올라오면 그 앨범으로 바뀝니다.'),
+      h('p', { class: 'meta' }, '바꾸시려면 아래 앨범에서 "★ 메인에 걸기"를 누르세요. 그 앨범도 그때부터 1주일 유지됩니다.'),
+      featured.chosen_by !== 'auto' ? h('button', { class: 'btn secondary small', onclick: async () => {
+        if (!confirm('직접 고른 것을 취소하고, 가장 최근 앨범이 자동으로 걸리게 할까요?')) return;
+        await api('/api/manage/featured/auto', { method: 'POST' });
+        select('visible');
+      } }, '자동 선택으로 되돌리기') : null);
+  }
+
   async function showAlbums(status, empty) {
+    featured = (await api('/api/manage/featured')).featured;
     const { albums } = await api(`/api/manage/albums?status=${status}`);
-    if (!albums.length) return body.replaceChildren(h('div', { class: 'notice' }, empty));
-    body.replaceChildren(...await Promise.all(albums.map(a => albumPanel(a))));
+    const top = status === 'visible' ? [featuredBox()] : [];
+    if (!albums.length) return body.replaceChildren(...top, h('div', { class: 'notice' }, empty));
+    body.replaceChildren(...top, ...await Promise.all(albums.map(a => albumPanel(a))));
   }
 
   async function showViewers() {

@@ -67,7 +67,7 @@ const THUMB_MAX = 480;  // 목록용 긴 변
   async function myAlbums() {
     const { albums } = await api('/api/manage/albums');
     if (!albums.length) return h('div', { class: 'notice' }, '아직 올린 앨범이 없습니다.');
-    const label = { pending: '부서 사진첩에 올라감', approved: '메인 화면에도 걸림', rejected: '사이트에서 내려짐' };
+    const label = { pending: '부서 사진첩에 올라감', approved: '부서 사진첩에 올라감', rejected: '사이트에서 내려짐' };
     return h('div', { class: 'panel list' }, albums.map(a =>
       h('div', { class: 'item' },
         h('div', {},

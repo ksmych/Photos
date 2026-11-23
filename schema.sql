@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS albums (
   dept_id     TEXT NOT NULL REFERENCES depts(id),
   title       TEXT NOT NULL,
   event_date  TEXT,                               -- YYYY-MM-DD
-  -- pending: 부서 사진첩에 보임 / approved: 메인 슬라이드쇼에도 걸림 / rejected: 사이트에서 내림
+  -- pending, approved: 부서 사진첩에 보임 / rejected: 사이트에서 내림 (메인 슬라이드쇼는 featured 표)
   status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
   created_by  TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
@@ -61,6 +61,14 @@ CREATE TABLE IF NOT EXISTS photos (
   hidden     INTEGER NOT NULL DEFAULT 0,          -- 1 이면 사이트에 안 보임
   hidden_by  TEXT                                 -- 'qc'(자동) 또는 'admin'(직접)
 );
+-- 메인 슬라이드쇼 기록. 가장 최근 줄이 지금 걸린 앨범이며 최소 7일 유지됩니다.
+CREATE TABLE IF NOT EXISTS featured (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  album_id   TEXT NOT NULL,
+  since      TEXT NOT NULL DEFAULT (datetime('now')),
+  chosen_by  TEXT NOT NULL            -- 'auto' 또는 관리자 이메일
+);
+
 CREATE INDEX IF NOT EXISTS photos_album ON photos (album_id, sort);
 CREATE INDEX IF NOT EXISTS photos_qc ON photos (qc_status);
 
