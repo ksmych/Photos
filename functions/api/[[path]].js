@@ -113,7 +113,7 @@ async function currentFeatured(env) {
   if (!open.length) return null;
   const marks = open.map(() => '?').join(',');
   const { results } = await env.DB.prepare(
-    `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks}) ORDER BY a.created_at DESC LIMIT 10`
+    `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks}) ORDER BY COALESCE(a.event_date, substr(a.created_at, 1, 10)) DESC, a.created_at DESC LIMIT 10`
   ).bind(...open).all();
   const newest = results.find(a => a.count > 0);
   if (!newest) return valid ? pack(curAlbum, cur) : null;
@@ -145,7 +145,7 @@ async function publicApi(parts, method, request, env, user) {
       const marks = open.map(() => '?').join(',');
       const { results: rec } = await env.DB.prepare(
         `SELECT ${ALBUM_COLS} FROM albums a WHERE ${VISIBLE} AND a.dept_id IN (${marks})
-         ORDER BY a.created_at DESC LIMIT 12`
+         ORDER BY COALESCE(a.event_date, substr(a.created_at, 1, 10)) DESC, a.created_at DESC LIMIT 12`
       ).bind(...open).all();
       recent = rec.filter(a => a.count > 0).slice(0, 6);
     }
@@ -291,6 +291,18 @@ async function manage(parts, method, request, env, user) {
       if (!isAdmin(user) && !mine) return fail(403, '권한이 없습니다');
       const triggered = await triggerQc(env);
       return json({ ok: true, triggered });
+    }
+
+    // 사진을 고르면 찍은 날짜로 행사 날짜를 맞춥니다 (올린 사람도 가능, 아직 사진이 없는 새 앨범만)
+    if (action === 'date' && method === 'POST') {
+      if (!canEdit) return fail(403, '권한이 없습니다');
+      if (album.total > 0) return fail(400, '사진이 있는 앨범은 관리 화면에서 고쳐 주세요');
+      const body = await request.json().catch(() => ({}));
+      const eventDate = String(body.event_date || '');
+      if (!DATE_RE.test(eventDate)) return fail(400, '날짜 형식이 맞지 않습니다');
+      await env.DB.prepare('UPDATE albums SET title = ?, event_date = ? WHERE id = ?')
+        .bind(datedTitle(album.title, eventDate), eventDate, id).run();
+      return json({ album: await getAlbum(env, id) });
     }
 
     // 사진 한 장 올리기: 원본 + 웹용 + 썸네일

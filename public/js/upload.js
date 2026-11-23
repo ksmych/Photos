@@ -29,7 +29,7 @@ const THUMB_MAX = 480;  // 목록용 긴 변
       h('option', { value: '' }, '부서를 고르세요'),
       depts.map(d => h('option', { value: d.id }, d.name)));
     const title = h('input', { type: 'text', maxlength: 80, placeholder: '예: 추수감사주일 성례식', required: true, style: 'flex:1;min-width:0' });
-    const date = h('input', { type: 'date', value: new Date().toLocaleDateString('sv-SE'), required: true });
+    const date = h('input', { type: 'date', value: todayLocal(), required: true });
     // 앨범 이름 앞에 날짜가 자동으로 붙습니다: 20261115_추수감사주일 성례식
     const prefix = h('span', { style: 'font-weight:700;white-space:nowrap' });
     const preview = h('div', { class: 'meta', style: 'font-weight:400;color:var(--muted)' });
@@ -42,6 +42,8 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     date.addEventListener('input', refresh);
     title.addEventListener('input', refresh);
     refresh();
+    // 카톡 공유로 받은 사진이면 찍은 날짜로 행사 날짜를 미리 채웁니다
+    if (shared.length) photoDay(shared).then(day => { if (day) { date.value = day; refresh(); } });
     const msg = h('div', { class: 'error', role: 'alert' });
     const form = h('form', { class: 'form' },
       shared.length
@@ -94,18 +96,31 @@ const THUMB_MAX = 480;  // 목록용 긴 변
     const picked = h('p', {}, '아직 고른 사진이 없습니다.');
     const go = h('button', { class: 'btn ok', disabled: true }, '올리기 시작');
     let files = [];
-    input.addEventListener('change', () => {
+    const title = h('strong', {}, album.title);
+    const dateNote = h('p', { style: 'font-weight:700;color:var(--ok)' });
+    input.addEventListener('change', async () => {
       files = [...input.files];
       picked.textContent = files.length ? `사진 ${files.length}장을 골랐습니다.` : '아직 고른 사진이 없습니다.';
+      go.disabled = !files.length;
+      // 새 앨범인데 행사 날짜를 오늘 그대로 두었으면, 사진을 찍은 날짜로 바꿉니다 (지난 행사 사진 올릴 때)
+      if (!files.length || album.total > 0 || album.event_date !== todayLocal()) return;
+      const day = await photoDay(files);
+      if (!day || day === album.event_date) return;
+      go.disabled = true;
+      try {
+        album = (await api(`/api/manage/albums/${album.id}/date`, { json: { event_date: day } })).album;
+        title.textContent = album.title;
+        dateNote.textContent = `사진을 찍은 날짜(${day.replace(/-/g, '.')})로 앨범 날짜를 바꿨습니다 → ${album.title}`;
+      } catch { /* 그대로 둠 */ }
       go.disabled = !files.length;
     });
     go.addEventListener('click', () => runUpload(album, files));
     content.replaceChildren(h('div', { class: 'form' },
-      h('p', {}, h('strong', {}, album.title), ` 앨범에 올릴 사진을 골라 주세요. 지금 사진 ${album.count || 0}장이 있습니다.`),
+      h('p', {}, title, ` 앨범에 올릴 사진을 골라 주세요. 지금 사진 ${album.count || 0}장이 있습니다.`),
       h('p', { style: 'color:var(--muted);font-size:0.9rem' },
         '카카오톡으로 받은 사진보다 휴대폰 갤러리의 원래 사진을 고르시면 인쇄용 원본이 좋은 화질로 남습니다.'),
       h('button', { class: 'btn secondary', onclick: () => input.click() }, '📷 사진 고르기'),
-      input, picked, go,
+      input, picked, dateNote, go,
       h('button', { class: 'btn secondary small', onclick: showStart }, '처음으로')));
   }
 
@@ -194,6 +209,21 @@ async function decode(file) {
     im.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이 사진 형식은 열 수 없습니다')); };
     im.src = url;
   });
+}
+
+function todayLocal() { return new Date().toLocaleDateString('sv-SE'); }
+
+// 고른 사진들 가운데 가장 많이 찍힌 날(한국 시간 YYYY-MM-DD). 찍은 날짜가 없으면 null.
+async function photoDay(files) {
+  const count = {};
+  for (const f of files.slice(0, 60)) {
+    const t = await takenTime(f);
+    if (t == null) continue;
+    const day = new Date((t + 9 * 3600) * 1000).toISOString().slice(0, 10);
+    count[day] = (count[day] || 0) + 1;
+  }
+  const best = Object.entries(count).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return best ? best[0] : null;
 }
 
 // JPEG 속 EXIF 에서 찍은 시각을 읽습니다 (원본은 바꾸지 않음). 못 읽으면 null.
