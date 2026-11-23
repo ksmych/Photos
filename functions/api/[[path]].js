@@ -8,6 +8,20 @@ const MAX_ORIGINAL = 60 * 1024 * 1024;   // 원본 한 장 최대 60MB
 const MAX_WEB = 8 * 1024 * 1024;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const REJECT_KEEP_DAYS = 7;   // 자동으로 걸러진 사진을 되살릴 수 있는 기간
+const FREE_BYTES = 10 * 1024 ** 3;          // R2 무료 10GB
+const ALERT_BYTES = 8 * 1024 ** 3;          // 8GB 넘으면 알림
+const ALERT_EVERY_DAYS = 7;                 // 알림 메일은 일주일에 한 번까지
+
+// 저장 공간 사용량 (원본 + 화면용 + 목록용). 예전 사진처럼 크기 기록이 없으면 원본의 10%로 어림합니다.
+async function storageUsage(env) {
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS photos,
+       COALESCE(SUM(COALESCE(orig_size, 0) + COALESCE(web_size, orig_size * 0.08, 0) + COALESCE(thumb_size, orig_size * 0.02, 0)), 0) AS bytes
+     FROM photos`
+  ).first();
+  const bytes = Math.round(row.bytes);
+  return { photos: row.photos, bytes, free_bytes: FREE_BYTES, alert_bytes: ALERT_BYTES, over_alert: bytes >= ALERT_BYTES };
+}
 
 export async function onRequest(context) {
   const { request, env, params } = context;
@@ -273,9 +287,9 @@ async function manage(parts, method, request, env, user) {
 
       const sort = Number(form.get('sort')) || 0;
       await env.DB.prepare(
-        `INSERT INTO photos (id, album_id, orig_key, orig_name, orig_type, orig_size, width, height, sort)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      ).bind(photoId, id, origKey, orig.name.slice(0, 200), orig.type, orig.size,
+        `INSERT INTO photos (id, album_id, orig_key, orig_name, orig_type, orig_size, web_size, thumb_size, width, height, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(photoId, id, origKey, orig.name.slice(0, 200), orig.type, orig.size, web.size, thumb.size,
         Number(form.get('width')) || null, Number(form.get('height')) || null, sort).run();
       return json({ photo: { id: photoId } }, 201);
     }
@@ -326,6 +340,12 @@ async function manage(parts, method, request, env, user) {
       await deleteAlbum(env, id);
       return json({ ok: true });
     }
+  }
+
+  // 저장 공간 사용량 (관리자 화면 위쪽에 표시)
+  if (res === 'usage' && method === 'GET') {
+    if (!isAdmin(user)) return fail(403, '관리자만 할 수 있습니다');
+    return json(await storageUsage(env));
   }
 
   // 지금 메인 슬라이드쇼 (관리자 화면용) / 자동으로 되돌리기
@@ -527,6 +547,20 @@ async function qcApi(parts, method, request, env) {
     }
     if (stmts.length) await env.DB.batch(stmts);
     return json({ ok: true, updated: stmts.length });
+  }
+
+  // 저장 공간 확인 (GitHub Actions 가 6시간마다). 8GB 넘었고 최근 일주일 안에 알리지 않았으면 send_alert
+  if (res === 'usage' && !id && method === 'GET') {
+    const usage = await storageUsage(env);
+    const last = await env.DB.prepare("SELECT value FROM settings WHERE key = 'usage_alert_at'").first();
+    const recent = last && Date.now() - Date.parse(last.value) < ALERT_EVERY_DAYS * 86400000;
+    return json({ ...usage, send_alert: usage.over_alert && !recent });
+  }
+  if (res === 'usage' && id === 'alerted' && method === 'POST') {
+    await env.DB.prepare(
+      "INSERT INTO settings (key, value) VALUES ('usage_alert_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    ).bind(new Date().toISOString()).run();
+    return json({ ok: true });
   }
 
   // 걸러진 지 7일 지난 사진 지우기 (관리자가 되살리지 않은 것만)

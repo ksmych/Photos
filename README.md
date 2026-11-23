@@ -44,6 +44,12 @@
 - 놓친 경우를 위해 6시간마다 한 번 더 확인하며, 검사할 사진이 없으면 몇 초 만에 끝납니다.
 - 로컬 시험: `python scripts/photo_qc.py --local 사진폴더`
 
+## 저장 공간 알림
+
+관리 화면 위쪽에 R2 사용량(원본 + 화면용 + 목록용, 무료 10GB 기준)이 보이고, 8GB를 넘으면 빨간 경고가 나옵니다.
+GitHub Secrets 에 `GMAIL_USER`, `GMAIL_APP_PASSWORD`(Gmail 앱 비밀번호), `ALERT_EMAIL` 을 넣으면
+6시간마다 확인해서 8GB를 넘었을 때 메일도 보냅니다(일주일에 한 번까지). 없으면 메일은 건너뜁니다.
+
 ## 처음 설정 (한 번만)
 
 1. Cloudflare 가입 후 R2 버킷 `gsmy-photos`, D1 데이터베이스 `gsmy-photos` 를 만듭니다.

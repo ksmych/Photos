@@ -22,7 +22,26 @@
   ];
   const tabBar = h('div', { class: 'tabs', role: 'tablist' });
   const body = h('div');
-  content.replaceChildren(tabBar, body);
+  const usageBox = h('div');
+  content.replaceChildren(usageBox, tabBar, body);
+  showUsage();
+
+  // 저장 공간: 무료 10GB 중 얼마나 썼는지, 8GB 넘으면 빨간 경고
+  async function showUsage() {
+    try {
+      const u = await api('/api/manage/usage');
+      const gb = n => (n / 1024 ** 3).toFixed(n < 1024 ** 3 ? 2 : 1);
+      const pct = Math.min(100, (u.bytes / u.free_bytes) * 100);
+      usageBox.replaceChildren(h('div', { class: 'panel' + (u.over_alert ? ' warn' : '') },
+        h('div', { class: 'row', style: 'justify-content:space-between' },
+          h('strong', {}, '사진 저장 공간'),
+          h('span', {}, `${gb(u.bytes)}GB / 무료 ${Math.round(u.free_bytes / 1024 ** 3)}GB · 사진 ${u.photos.toLocaleString()}장`)),
+        h('div', { class: 'progress', style: 'margin-top:0.5rem' },
+          h('div', { style: `width:${pct}%;${u.over_alert ? 'background:var(--accent)' : ''}` })),
+        u.over_alert ? h('p', { class: 'error' },
+          `${Math.round(u.alert_bytes / 1024 ** 3)}GB를 넘었습니다. 10GB를 넘으면 1GB당 한 달 약 20원이 나옵니다. "원본 백업"으로 오래된 원본을 받아 두신 뒤 정리를 검토해 주세요.`) : null));
+    } catch { usageBox.replaceChildren(); }
+  }
   function select(key) {
     tabBar.replaceChildren(...tabs.map(([k, label]) =>
       h('button', { class: 'btn small', role: 'tab', 'aria-selected': String(k === key), onclick: () => select(k) }, label)));

@@ -141,3 +141,5 @@ h2 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; }
 .thumbs img { cursor: pointer; }
 .thumbs .t.off img { opacity: 0.35; filter: grayscale(1); }
 .thumbs .qc { font-size: 0.7rem; line-height: 1.3; color: var(--accent); font-weight: 700; min-height: 0.9rem; margin-top: 2px; }
+
+.panel.warn { border-color: var(--accent); background: #fdf1ef; }

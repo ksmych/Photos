@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS photos (
   orig_name  TEXT,
   orig_type  TEXT,
   orig_size  INTEGER,
+  web_size   INTEGER,                             -- 화면용 사진 크기 (저장 공간 계산용)
+  thumb_size INTEGER,
   width      INTEGER,
   height     INTEGER,
   sort       INTEGER NOT NULL DEFAULT 0,
@@ -67,6 +69,12 @@ CREATE TABLE IF NOT EXISTS featured (
   album_id   TEXT NOT NULL,
   since      TEXT NOT NULL DEFAULT (datetime('now')),
   chosen_by  TEXT NOT NULL            -- 'auto' 또는 관리자 이메일
+);
+
+-- 작은 설정값 (예: 용량 알림을 마지막으로 보낸 때)
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
 );
 
 CREATE INDEX IF NOT EXISTS photos_album ON photos (album_id, sort);

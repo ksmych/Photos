@@ -22,6 +22,17 @@ jobs:
       SITE_URL: ${{ secrets.SITE_URL }}
       QC_TOKEN: ${{ secrets.QC_TOKEN }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      - name: 저장 공간 확인 (8GB 넘으면 메일 알림)
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: python3 scripts/usage_alert.py
+
       - name: 걸러진 지 7일 지난 사진 지우기
         run: curl -fsS -X POST -H "Authorization: Bearer $QC_TOKEN" "$SITE_URL/api/qc/cleanup"
 
@@ -32,9 +43,6 @@ jobs:
               | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["albums"]))')
           echo "검사할 앨범: $n"
           echo "count=$n" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/checkout@v4
-        if: steps.check.outputs.count != '0'
 
       - uses: actions/setup-python@v5
         if: steps.check.outputs.count != '0'
