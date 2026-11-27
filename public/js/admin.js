@@ -5,7 +5,7 @@
   try { const r = await api('/api/me'); me = r.user; issue = r.auth_issue; } catch { me = null; }
   if (!me || me.role !== 'admin') {
     const why = me
-      ? `${me.email} 으로 로그인되어 있지만 관리자 명단에 없습니다. (Cloudflare 의 ADMIN_EMAILS 값을 확인하세요)`
+      ? `${me.email} 으로 로그인되어 있지만 관리자 명단에 없습니다. 관리자 명단에 추가하려면 사진첩 메인 관리자(목사님)에게 카톡이나 이메일을 보내주세요.`
       : `로그인이 확인되지 않았습니다.${issue ? ` 이유: ${issue}` : ''}`;
     content.replaceChildren(h('div', { class: 'notice' },
       h('p', {}, '관리자만 볼 수 있는 화면입니다.'),
