@@ -65,12 +65,12 @@
       const waiting = photos.filter(p => p.qc_status === 'pending').length;
       summary.textContent = waiting
         ? `자동 선별 중… (${waiting}장 남음). 몇 분 뒤 새로 고쳐 주세요.`
-        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. ◀ ▶ 로 순서를 바꾸고, "★ 대표" 를 누른 사진이 첫 화면 큰 사진과 앨범 표지가 됩니다(순서는 그대로). 고르지 않으면 첫 사진이 대표입니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
+        : `사이트에 보일 사진 ${shown()}장 / 뺀 사진 ${photos.length - shown()}장. 사진을 누르면 넣고 뺄 수 있습니다. 사진을 끌어다 놓거나(휴대폰은 꾹 누른 뒤 끌기) ◀ ▶ 로 순서를 바꾸고, "★ 대표" 를 누른 사진이 첫 화면 큰 사진과 앨범 표지가 됩니다(순서는 그대로). 고르지 않으면 첫 사진이 대표입니다. 자동으로 빠진 사진은 7일 뒤 지워집니다.`;
     };
     let coverPick = a.cover_pick || null;
     const thumbs = h('div', { class: 'thumbs' }, photos.map(p => {
       const label = h('div', { class: 'qc' });
-      const pic = h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy' });
+      const pic = h('img', { src: img('thumb', p.id), alt: '', loading: 'lazy', draggable: 'false' });
       const t = h('div', { class: 't' }, pic, label,
         h('button', { class: 'del', title: '사진 지우기', onclick: async e => {
           e.stopPropagation();
@@ -118,16 +118,26 @@
         photos.forEach(x => x.el.classList.toggle('cover', x.id === coverPick));
       } catch (err) { alert(err.message); }
     }
+    async function saveOrder() {
+      try {
+        await api(`/api/manage/albums/${a.id}/order`, { json: { ids: photos.map(x => x.id) } });
+      } catch (err) { alert(err.message); }
+    }
     async function move(p, to) {
       const from = photos.indexOf(p);
       if (to < 0 || to >= photos.length || to === from) return;
       photos.splice(from, 1);
       photos.splice(to, 0, p);
       thumbs.replaceChildren(...photos.map(x => x.el));
-      try {
-        await api(`/api/manage/albums/${a.id}/order`, { json: { ids: photos.map(x => x.id) } });
-      } catch (err) { alert(err.message); }
+      await saveOrder();
     }
+    // 끌어다 놓아서 순서 바꾸기
+    enableDrag(thumbs, () => {
+      const order = [...thumbs.children].map(el => photos.find(x => x.el === el)).filter(Boolean);
+      if (order.length !== photos.length || order.every((x, i) => x === photos[i])) return;
+      photos.splice(0, photos.length, ...order);
+      saveOrder();
+    });
     updateSummary();
     const act = async (path, opts, confirmMsg) => {
       if (confirmMsg && !confirm(confirmMsg)) return;
@@ -369,4 +379,53 @@ async function downloadZip(button, name, files) {
     button.disabled = false;
     button.textContent = label;
   }
+}
+
+// 사진 칸을 끌어다 놓아 순서를 바꿉니다. 마우스는 조금 움직이면 바로, 휴대폰은 0.3초 꾹 누른 뒤 끕니다
+// (그냥 밀면 화면이 넘어가도록). 끌기가 끝나면 onDrop() 을 부릅니다.
+function enableDrag(grid, onDrop) {
+  let drag = null;
+  let suppressClick = false;
+  const start = () => {
+    if (!drag) return;
+    drag.active = true;
+    drag.el.classList.add('dragging');
+    try { drag.el.setPointerCapture(drag.id); } catch { /* 무시 */ }
+    if (navigator.vibrate) navigator.vibrate(15);
+  };
+  grid.addEventListener('pointerdown', e => {
+    const el = e.target.closest('.t');
+    if (!el || el.parentNode !== grid || e.target.closest('button') || e.button > 0) return;
+    drag = { el, id: e.pointerId, x: e.clientX, y: e.clientY, active: false, touch: e.pointerType !== 'mouse' };
+    if (drag.touch) drag.timer = setTimeout(start, 300);
+  });
+  grid.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dist = Math.hypot(e.clientX - drag.x, e.clientY - drag.y);
+    if (!drag.active) {
+      if (drag.touch) { if (dist > 10) { clearTimeout(drag.timer); drag = null; } return; }
+      if (dist < 8) return;
+      start();
+    }
+    e.preventDefault();
+    const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('.t');
+    if (!over || over === drag.el || over.parentNode !== grid) return;
+    const r = over.getBoundingClientRect();
+    grid.insertBefore(drag.el, e.clientX > r.left + r.width / 2 ? over.nextSibling : over);
+  });
+  // 휴대폰에서 끄는 동안 화면이 같이 움직이지 않게
+  grid.addEventListener('touchmove', e => { if (drag && drag.active) e.preventDefault(); }, { passive: false });
+  grid.addEventListener('contextmenu', e => { if (drag) e.preventDefault(); });
+  const end = e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    clearTimeout(drag.timer);
+    const was = drag.active;
+    drag.el.classList.remove('dragging');
+    drag = null;
+    if (was) { suppressClick = true; setTimeout(() => { suppressClick = false; }, 300); onDrop(); }
+  };
+  grid.addEventListener('pointerup', end);
+  grid.addEventListener('pointercancel', end);
+  // 끌기가 끝난 직후의 "누름"은 넣고 빼기로 치지 않음
+  grid.addEventListener('click', e => { if (suppressClick) { e.stopPropagation(); e.preventDefault(); suppressClick = false; } }, true);
 }
